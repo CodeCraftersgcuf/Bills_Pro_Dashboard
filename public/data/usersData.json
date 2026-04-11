@@ -1,0 +1,51 @@
+[
+  {
+    "id": "1",
+    "name": "Qamardeen Malik",
+    "email": "qamardeenoladimeji@gmail.com",
+    "phone": "07033484845",
+    "walletBalance": "N25,000",
+    "kycStatus": "verified"
+  },
+  {
+    "id": "2",
+    "name": "Tunde Ajayi",
+    "email": "tunde.ajayi@sample.com",
+    "phone": "08123456789",
+    "walletBalance": "N30,000",
+    "kycStatus": "verified"
+  },
+  {
+    "id": "3",
+    "name": "Qamardeen Malik",
+    "email": "qamardeenoladimeji@gmail.com",
+    "phone": "07033484845",
+    "walletBalance": "N25,000",
+    "kycStatus": "unverified"
+  },
+  {
+    "id": "4",
+    "name": "Chinonso Okeke",
+    "email": "chinonso.okeke@mail.com",
+    "phone": "09098765432",
+    "walletBalance": "N20,000",
+    "kycStatus": "unverified"
+  },
+  {
+    "id": "6",
+    "name": "John Doe",
+    "email": "john.doe@example.com",
+    "phone": "09123456789",
+    "walletBalance": "N10,000",
+    "kycStatus": "rejected"
+  },
+  {
+    "id": "5",
+    "name": "Amina Yusuf",
+    "email": "amina.yusuf@example.com",
+    "phone": "08012345678",
+    "walletBalance": "N15,000",
+    "kycStatus": "verified"
+  }
+]
+

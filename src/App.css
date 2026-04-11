@@ -1,0 +1,68 @@
+/* Set scrollbar width for vertical scrolling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+  /* Set height for horizontal scrollbar */
+}
+
+/* Scrollbar thumb (draggable part) */
+::-webkit-scrollbar-thumb {
+  background-color: #ff00003e;
+  /* Dark theme thumb */
+  border-radius: 10px;
+}
+
+/* Hover effect on scrollbar thumb */
+::-webkit-scrollbar-thumb:hover {
+  background-color: #ff0000a3;
+}
+
+/* Scrollbar track (background) */
+::-webkit-scrollbar-track {
+  background-color: transparent;
+  /* Dark theme track */
+  border-radius: 10px;
+}
+
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.bg-theme-dark {
+  background-color: #FF0000;
+}
+
+.bg-theme-light {
+  background-color: #FFF2F2;
+  /* background-color: #257355; */
+}
+
+.add-wallet-modal {
+  background-color: #064e3b; /* A deep green background */
+  color: white;
+  padding: 20px;
+  border-radius: 8px;
+}
+
+.network-item {
+  margin: 5px 0;
+  padding: 10px;
+  border-radius: 5px;
+}
+
+.network-item.selected {
+  background-color: #046307; /* A slightly different green */
+}
+
+.toggle {
+  cursor: pointer;
+}
+
+.link_effect:hover  img  {
+  filter: invert();
+}
