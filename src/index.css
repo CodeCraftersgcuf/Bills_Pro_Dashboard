@@ -1,2 +1,20 @@
-
 @import "tailwindcss";
+
+/* Single scroll surface: prevent body/html + inner main both scrolling */
+html {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+#root {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}

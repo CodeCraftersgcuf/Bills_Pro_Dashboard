@@ -3,48 +3,52 @@ import Layout from "./layout/Layout";
 import "./App.css";
 
 import Login from "./auth/Login";
-import Register from "./auth/Register";
 import Dashboard from "./pages/dashboard/Dashboard";
 import UserManagement from "./pages/userManagement/UserManagement";
+import UserProfile from "./pages/userManagement/UserProfile";
 import Transaction from "./pages/transaction/Transaction";
 import KYC from "./pages/kyc/KYC";
+import VirtualCards from "./pages/virtualCards/VirtualCards";
 import WalletManagement from "./pages/walletManagement/WalletManagement";
 import Rates from "./pages/rates/Rates";
-import P2P from "./pages/p2p/P2P";
-import ChatAppeals from "./pages/chatAppeals/ChatAppeals";
+import BillPayments from "./pages/billPayments/BillPayments";
 import MasterWallet from "./pages/masterWallet/MasterWallet";
-import Rewards from "./pages/rewards/Rewards";
 import Analytics from "./pages/analytics/Analytics";
 import Support from "./pages/support/Support";
 import Notification from "./pages/notification/Notification";
 import Setting from "./pages/setting/Setting";
+import AdminDetail from "./pages/setting/AdminDetail";
 
 const App: React.FC = () => {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
-        <Route path="/" element={<Layout />}>
-          <Route index element={<Navigate to="/dashboard" replace />} />
-          <Route path="dashboard" element={<Dashboard />} />
-          <Route path="user/management" element={<UserManagement />} />
-          <Route path="transaction" element={<Transaction />} />
-          <Route path="kyc" element={<KYC />} />
-          <Route path="wallet-management" element={<WalletManagement />} />
-          <Route path="rates" element={<Rates />} />
-          <Route path="p2p" element={<P2P />} />
-          <Route path="chat-appeals" element={<ChatAppeals />} />
-          <Route path="master-wallet" element={<MasterWallet />} />
-          <Route path="rewards" element={<Rewards />} />
-          <Route path="analytics" element={<Analytics />} />
-          <Route path="support" element={<Support />} />
-          <Route path="notification" element={<Notification />} />
-          <Route path="settings" element={<Setting />} />
-        </Route>
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
-      </Routes>
-    </BrowserRouter>
+    <div className="flex h-full min-h-0 w-full min-w-0 flex-col">
+      <BrowserRouter>
+        <div className="flex h-full min-h-0 flex-1 flex-col">
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/" element={<Layout />}>
+              <Route index element={<Navigate to="/dashboard" replace />} />
+              <Route path="dashboard" element={<Dashboard />} />
+              <Route path="user/management" element={<UserManagement />} />
+              <Route path="user/management/profile/:userId" element={<UserProfile />} />
+              <Route path="transaction" element={<Transaction />} />
+              <Route path="kyc" element={<KYC />} />
+              <Route path="virtual-cards" element={<VirtualCards />} />
+              <Route path="wallet-management" element={<WalletManagement />} />
+              <Route path="rates" element={<Rates />} />
+              <Route path="bill-payments" element={<BillPayments />} />
+              <Route path="master-wallet" element={<MasterWallet />} />
+              <Route path="analytics" element={<Analytics />} />
+              <Route path="support" element={<Support />} />
+              <Route path="notification" element={<Notification />} />
+              <Route path="settings" element={<Setting />} />
+              <Route path="settings/admin/:adminId" element={<AdminDetail />} />
+            </Route>
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          </Routes>
+        </div>
+      </BrowserRouter>
+    </div>
   );
 };
 

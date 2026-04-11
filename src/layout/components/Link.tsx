@@ -18,6 +18,12 @@ interface LinkCompProps {
   menuStatus: boolean;
 }
 
+function pathMatchesLink(pathname: string, link: string): boolean {
+  if (pathname === link) return true;
+  if (link !== "/" && pathname.startsWith(`${link}/`)) return true;
+  return false;
+}
+
 const LinkComp: React.FC<LinkCompProps> = ({
   name,
   link,
@@ -31,45 +37,26 @@ const LinkComp: React.FC<LinkCompProps> = ({
   const [isActive, setIsActive] = useState<boolean>(isActiveCheck);
 
   useEffect(() => {
-    setIsActive(location.pathname.split("/")[1] === link.split("/")[1]);
+    setIsActive(pathMatchesLink(location.pathname, link));
   }, [location.pathname, link, sub]);
 
   return (
-    <div className="relative">
+    <div className="relative px-1">
       <Link
         to={link}
         onClick={onClick}
-        className={`flex items-center gap-3 py-3 rounded-lg transition-all duration-200 relative
+        className={`flex items-center gap-3 py-3 rounded-xl transition-all duration-200
           ${
             isActive
-              ? "text-gray-900 pl-5 pr-4"
-              : "text-white/70 hover:text-white hover:bg-white/10 px-4"
+              ? "bg-[#E8E8EA] text-gray-900 px-3"
+              : "text-white hover:bg-white/10 px-3"
           }`}
-        style={
-          isActive
-            ? {
-                background: "linear-gradient(90deg, #FFFFFF 0%, #1DB61D 100%)",
-              }
-            : {}
-        }
       >
-        {isActive && (
-          <div className="absolute left-1 top-[9%] h-[85%] w-[6px] bg-black rounded z-10" />
-        )}
-        <div className="flex items-center gap-3 relative z-20">
-          <Icon
-            className="w-5 h-5 shrink-0"
-            strokeWidth={2}
-            style={
-              isActive
-                ? {
-                    color: "#0f172a",
-                  }
-                : { opacity: 0.85 }
-            }
-          />
-          {!menuStatus && <span className="font-medium">{name}</span>}
-        </div>
+        <Icon
+          className={`w-5 h-5 shrink-0 ${isActive ? "text-gray-900" : "text-white"}`}
+          strokeWidth={1.75}
+        />
+        {!menuStatus && <span className="font-medium text-[15px] leading-tight">{name}</span>}
       </Link>
     </div>
   );
