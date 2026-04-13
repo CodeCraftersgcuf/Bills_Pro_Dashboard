@@ -17,9 +17,12 @@ interface KycDetailsModalProps {
   open: boolean;
   onClose: () => void;
   initial: KycDetailsInitial | null;
+  onApprove?: () => void;
+  onReject?: (reason: string) => void;
+  busy?: boolean;
 }
 
-const KycDetailsModal: React.FC<KycDetailsModalProps> = ({ open, onClose, initial }) => {
+const KycDetailsModal: React.FC<KycDetailsModalProps> = ({ open, onClose, initial, onApprove, onReject, busy = false }) => {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
@@ -183,11 +186,30 @@ const KycDetailsModal: React.FC<KycDetailsModalProps> = ({ open, onClose, initia
 
           <button
             type="submit"
-            className="mt-8 w-full rounded-full py-3.5 text-center text-sm font-bold text-white shadow-md transition-opacity hover:opacity-90"
+            disabled={busy}
+            className="mt-8 w-full rounded-full py-3.5 text-center text-sm font-bold text-white shadow-md transition-opacity hover:opacity-90 disabled:opacity-60"
             style={{ backgroundColor: GREEN }}
           >
             Save
           </button>
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={onApprove}
+              disabled={busy || !onApprove}
+              className="rounded-full bg-[#DCFCE7] py-3 text-sm font-bold text-[#166534] disabled:opacity-50"
+            >
+              Approve
+            </button>
+            <button
+              type="button"
+              onClick={() => onReject?.("Rejected by admin")}
+              disabled={busy || !onReject}
+              className="rounded-full bg-[#FEE2E2] py-3 text-sm font-bold text-[#B91C1C] disabled:opacity-50"
+            >
+              Reject
+            </button>
+          </div>
         </form>
       </div>
     </div>

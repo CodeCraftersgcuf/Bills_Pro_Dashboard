@@ -1,4 +1,6 @@
-import React, { useEffect, useState } from "react";
+import React, { useDeferredValue, useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useSearchParams } from "react-router-dom";
 import {
   Users,
   Banknote,
@@ -6,13 +8,16 @@ import {
   ChevronDown,
   Search,
   X,
-  Check,
   Copy,
 } from "lucide-react";
 import StatCard from "../../components/StatCard";
+import { fetchAdminStats } from "../../api/adminStats";
+import { fetchAdminTransactions, type AdminTransactionRow } from "../../api/adminTransactions";
+import { avatarUrlForName } from "../../utils/avatarUrl";
+import { presetToFromTo, type DateRangePreset } from "../../utils/dateRange";
 
 const GREEN = "#1B800F";
-/** Segmented filter track + dropdown fills (mock) */
+/** Segmented filter track + dropdown fills */
 const FILTER_TRACK_BG = "#E8E8E8";
 const FILTER_DROPDOWN_BG = "#E5E5E5";
 const LATEST_HEADER_GREEN = "#21D721";
@@ -26,6 +31,10 @@ const MODAL_BG = "#F4F4F5";
 const SUCCESS_BANNER = "#DCFCE7";
 const SUCCESS_GREEN = "#16A34A";
 const DETAIL_CARD_BG = "#E4E4E7";
+const SUCCESS_ICON = "/transaction-success-icon.png";
+const PENDING_ICON = "/pending-transaction-icon.png";
+const PENDING_BANNER = "#FFFBEB";
+const PENDING_TITLE = "#C2410C";
 
 type CurrencyTab = "all" | "naira" | "crypto";
 type TypePill = "all" | "deposits" | "withdrawals" | "bill";
@@ -72,7 +81,10 @@ function TxReceiptModal({
 }) {
   const [copied, setCopied] = useState<string | null>(null);
   const d = row.detail;
-  const isSuccess = row.status.toLowerCase() === "successful";
+  const statusLc = row.status.toLowerCase();
+  const isSuccess = statusLc === "successful" || statusLc === "completed";
+  const isPending = statusLc === "pending";
+  const bannerBg = isSuccess ? SUCCESS_BANNER : isPending ? PENDING_BANNER : "#F3F4F6";
 
   const copy = (key: string, text: string) => {
     void navigator.clipboard.writeText(text);
@@ -160,7 +172,7 @@ function TxReceiptModal({
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-5 sm:px-5">
           <div
             className="relative overflow-hidden rounded-b-[2.25rem] px-4 pb-10 pt-2 text-center"
-            style={{ backgroundColor: SUCCESS_BANNER }}
+            style={{ backgroundColor: bannerBg }}
           >
             <div
               className="pointer-events-none absolute -bottom-6 left-1/2 h-16 w-[120%] -translate-x-1/2 rounded-[50%] bg-white/25"
@@ -168,11 +180,8 @@ function TxReceiptModal({
             />
             {isSuccess ? (
               <>
-                <div
-                  className="relative mx-auto flex h-[4.5rem] w-[4.5rem] items-center justify-center rounded-full shadow-lg ring-4 ring-white/80"
-                  style={{ backgroundColor: SUCCESS_GREEN }}
-                >
-                  <Check className="h-9 w-9 text-white" strokeWidth={3} />
+                <div className="relative mx-auto flex h-[4.75rem] w-[4.75rem] items-center justify-center">
+                  <img src={SUCCESS_ICON} alt="" className="h-full w-full object-contain drop-shadow-md" width={76} height={76} />
                 </div>
                 <p className="relative mt-4 text-lg font-bold" style={{ color: SUCCESS_GREEN }}>
                   Success
@@ -183,6 +192,19 @@ function TxReceiptModal({
                 <p className="relative mt-1 text-xl font-bold tracking-tight text-gray-900">
                   {d.amount}
                 </p>
+              </>
+            ) : isPending ? (
+              <>
+                <div className="relative mx-auto flex h-[4.75rem] w-[4.75rem] items-center justify-center">
+                  <img src={PENDING_ICON} alt="" className="h-full w-full object-contain drop-shadow-md" width={76} height={76} />
+                </div>
+                <p className="relative mt-4 text-lg font-bold" style={{ color: PENDING_TITLE }}>
+                  Pending
+                </p>
+                <p className="relative mx-auto mt-2 max-w-[280px] text-xs leading-relaxed text-gray-600">
+                  This transaction is still processing.
+                </p>
+                <p className="relative mt-1 text-xl font-bold tracking-tight text-gray-900">{d.amount}</p>
               </>
             ) : (
               <>
@@ -238,101 +260,177 @@ function TxReceiptModal({
   );
 }
 
-const txSample: TxRow[] = [
-  {
-    id: "aqjj123452345224",
-    name: "Qamardeen Malik",
-    avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=80&h=80&fit=crop&crop=face",
-    amount: "₦200,000",
-    status: "Successful",
-    type: "Naira",
-    subType: "Deposit",
-    date: "10/22/25 - 07:30 AM",
+function formatTableDate(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  const yy = String(d.getFullYear()).slice(-2);
+  let h = d.getHours();
+  const m = d.getMinutes();
+  const am = h >= 12 ? "PM" : "AM";
+  h = h % 12 || 12;
+  return `${mm}/${dd}/${yy} - ${h}:${String(m).padStart(2, "0")} ${am}`;
+}
+
+function formatLongDate(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleString();
+}
+
+function mapDisplayStatus(st: string | null | undefined): string {
+  const s = (st || "").toLowerCase();
+  if (s === "completed") return "Successful";
+  if (s === "failed" || s === "cancelled") return "Failed";
+  return st || "—";
+}
+
+function formatMoneyAmount(v: string | number | null | undefined, currency: string | null | undefined): string {
+  const n = typeof v === "string" ? parseFloat(v) : Number(v);
+  if (Number.isNaN(n)) return "—";
+  const c = (currency || "").toUpperCase();
+  if (c === "NGN") return `₦${n.toLocaleString("en-NG", { maximumFractionDigits: 2 })}`;
+  return `${n.toLocaleString()} ${currency || ""}`.trim();
+}
+
+function humanizeSubtype(t: AdminTransactionRow): string {
+  const cat = (t.category || "").replace(/_/g, " ");
+  const ty = (t.type || "").replace(/_/g, " ");
+  return cat || ty || "—";
+}
+
+function toTxRow(t: AdminTransactionRow): TxRow {
+  const u = t.user;
+  const name = u?.name?.trim() || u?.email || "—";
+  const cur = (t.currency || "").toUpperCase();
+  const isNaira = cur === "NGN";
+  const statusLabel = mapDisplayStatus(t.status);
+  const amount = formatMoneyAmount(t.amount, t.currency);
+  const fee = formatMoneyAmount(t.fee, t.currency);
+  const total = formatMoneyAmount(t.total_amount, t.currency);
+  return {
+    id: String(t.transaction_id ?? t.id),
+    name,
+    avatar: avatarUrlForName(name),
+    amount,
+    status: statusLabel,
+    type: isNaira ? "Naira" : "Crypto",
+    subType: humanizeSubtype(t),
+    date: formatTableDate(t.created_at ?? null),
     detail: {
-      amount: "₦200,000",
-      fee: "₦200",
-      totalAmount: "₦200,200",
-      bankName: "Gratuity Bank",
-      accountNumber: "113456789",
-      accountName: "Yellow card Financial",
-      reference: "123456789",
-      transactionId: "2348hf8283hfc92eni",
-      description: "Fiat Deposit",
-      dateFormatted: "6th Nov. 2025 - 07:22 AM",
+      amount,
+      fee,
+      totalAmount: total,
+      bankName: t.bank_name || "—",
+      accountNumber: t.account_number || "—",
+      accountName: t.account_name || "—",
+      reference: t.reference || "—",
+      transactionId: String(t.transaction_id ?? t.id),
+      description: t.description || "—",
+      dateFormatted: formatLongDate(t.created_at ?? null),
     },
-  },
-  {
-    id: "bqkk234563456335",
-    name: "Chioma Okafor",
-    avatar: "https://images.unsplash.com/photo-1580489944761-15a19d654956?w=80&h=80&fit=crop&crop=face",
-    amount: "₦15,500",
-    status: "Successful",
-    type: "Naira",
-    subType: "Withdrawal",
-    date: "10/21/25 - 02:15 PM",
-    detail: {
-      amount: "₦15,500",
-      fee: "₦50",
-      totalAmount: "₦15,450",
-      bankName: "Access Bank",
-      accountNumber: "0123456789",
-      accountName: "Chioma Okafor",
-      reference: "WD-882910",
-      transactionId: "bqkk234563456335wd01",
-      description: "Fiat Withdrawal",
-      dateFormatted: "21st Oct. 2025 - 02:15 PM",
-    },
-  },
-  {
-    id: "crll345674567446",
-    name: "James Peterson",
-    avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=80&h=80&fit=crop&crop=face",
-    amount: "0.42 BTC",
-    status: "Successful",
-    type: "Crypto",
-    subType: "Deposit",
-    date: "10/20/25 - 11:00 AM",
-    detail: {
-      amount: "0.42 BTC",
-      fee: "0.00042 BTC",
-      totalAmount: "0.41958 BTC",
-      bankName: "On-chain",
-      accountNumber: "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh",
-      accountName: "James Peterson — Wallet",
-      reference: "CR-774120",
-      transactionId: "crll345674567446ch01",
-      description: "Crypto Deposit",
-      dateFormatted: "20th Oct. 2025 - 11:00 AM",
-    },
-  },
-  {
-    id: "dsmm456785678557",
-    name: "Amina Hassan",
-    avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=80&h=80&fit=crop&crop=face",
-    amount: "₦9,200",
-    status: "Successful",
-    type: "Naira",
-    subType: "Bill Payments",
-    date: "10/19/25 - 09:45 AM",
-    detail: {
-      amount: "₦9,200",
-      fee: "₦100",
-      totalAmount: "₦9,300",
-      bankName: "BillsPro Pay",
-      accountNumber: "9012345678",
-      accountName: "Amina Hassan",
-      reference: "BILL-00921",
-      transactionId: "dsmm456785678557bp01",
-      description: "Electricity bill",
-      dateFormatted: "19th Oct. 2025 - 09:45 AM",
-    },
-  },
-];
+  };
+}
+
+function fmtInt(n: number): string {
+  return n.toLocaleString("en-NG");
+}
 
 const Transaction: React.FC = () => {
+  const [searchParams] = useSearchParams();
+  const userIdParam = searchParams.get("user_id");
+  const userIdNum = userIdParam ? parseInt(userIdParam, 10) : NaN;
+
   const [currencyTab, setCurrencyTab] = useState<CurrencyTab>("all");
   const [typePill, setTypePill] = useState<TypePill>("all");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [cryptoSubtype, setCryptoSubtype] = useState("");
+  const [search, setSearch] = useState("");
+  const searchDebounced = useDeferredValue(search);
+  const [page, setPage] = useState(1);
   const [detailRow, setDetailRow] = useState<TxRow | null>(null);
+  const [datePreset, setDatePreset] = useState<DateRangePreset>("all");
+  const { from, to } = presetToFromTo(datePreset);
+
+  const statsQ = useQuery({
+    queryKey: ["admin", "stats"],
+    queryFn: fetchAdminStats,
+  });
+  const s = statsQ.data;
+
+  const typeApi = useMemo(() => {
+    if (typePill === "deposits") return "deposit";
+    if (typePill === "withdrawals") return "withdrawal";
+    if (typePill === "bill") return "bill_payment";
+    return undefined;
+  }, [typePill]);
+
+  const currencyApi = useMemo(() => {
+    if (currencyTab === "naira") return "NGN";
+    return undefined;
+  }, [currencyTab]);
+
+  const cryptoTypeApi = useMemo(() => {
+    if (currencyTab !== "crypto" || !cryptoSubtype || cryptoSubtype === "all-types") return undefined;
+    const map: Record<string, string> = {
+      deposit: "crypto_deposit",
+      withdrawal: "crypto_withdrawal",
+      buy: "crypto_buy",
+      sell: "crypto_sell",
+    };
+    return map[cryptoSubtype];
+  }, [currencyTab, cryptoSubtype]);
+
+  const typeForApi = useMemo(() => {
+    if (currencyTab === "crypto" && cryptoTypeApi) return cryptoTypeApi;
+    return typeApi;
+  }, [currencyTab, cryptoTypeApi, typeApi]);
+
+  const statusApi = useMemo(() => {
+    const m: Record<string, string> = {
+      successful: "completed",
+      pending: "pending",
+      failed: "failed",
+    };
+    return statusFilter && m[statusFilter] ? m[statusFilter] : undefined;
+  }, [statusFilter]);
+
+  const txQ = useQuery({
+    queryKey: [
+      "admin",
+      "transactions",
+      page,
+      currencyApi,
+      typeForApi,
+      statusApi,
+      userIdNum,
+      searchDebounced,
+      from,
+      to,
+    ],
+    queryFn: () =>
+      fetchAdminTransactions({
+        page,
+        per_page: 25,
+        user_id: Number.isFinite(userIdNum) ? userIdNum : undefined,
+        type: typeForApi,
+        currency: currencyApi,
+        status: statusApi,
+        search: searchDebounced.trim() || undefined,
+        from,
+        to,
+      }),
+  });
+
+  const rows = useMemo(() => {
+    const raw = txQ.data?.data ?? [];
+    let mapped = raw.map(toTxRow);
+    if (currencyTab === "crypto") {
+      mapped = mapped.filter((r) => r.type === "Crypto");
+    }
+    return mapped;
+  }, [txQ.data?.data, currencyTab]);
 
   const tabBtn = (active: boolean) =>
     `relative pb-3 text-sm font-semibold transition-colors ${
@@ -360,10 +458,14 @@ const Transaction: React.FC = () => {
           <div className="relative inline-flex w-full sm:w-auto">
             <select
               className="appearance-none w-full sm:w-[200px] rounded-xl bg-white/15 border border-white/25 text-white text-sm font-medium pl-4 pr-10 py-3 cursor-pointer hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/40"
-              defaultValue="range"
+              value={datePreset}
+              onChange={(e) => {
+                setDatePreset(e.target.value as DateRangePreset);
+                setPage(1);
+              }}
               aria-label="Select date range"
             >
-              <option value="range" className="text-gray-900">
+              <option value="all" className="text-gray-900">
                 Select Date
               </option>
               <option value="7d" className="text-gray-900">
@@ -382,10 +484,25 @@ const Transaction: React.FC = () => {
             />
           </div>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-5">
-          <StatCard icon={Users} label="Total Txns" value="20,000" hint="View total transactions" />
-          <StatCard icon={Banknote} label="Naira Txns" value="500" hint="View naira transactions" />
-          <StatCard icon={Coins} label="Crypto Txns" value="500" hint="View crypto transactions" />
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3 md:gap-5">
+          <StatCard
+            icon={Users}
+            label="Total Txns"
+            value={s ? fmtInt(s.transactions_total) : "—"}
+            hint="All ledger transactions"
+          />
+          <StatCard
+            icon={Banknote}
+            label="Revenue (NGN)"
+            value={s?.revenue_ngn_display ?? "—"}
+            hint="Completed NGN volume (all-time)"
+          />
+          <StatCard
+            icon={Coins}
+            label="Pending deposits"
+            value={s ? fmtInt(s.deposits_pending) : "—"}
+            hint="Deposit records awaiting completion"
+          />
         </div>
       </section>
 
@@ -402,8 +519,12 @@ const Transaction: React.FC = () => {
             <button
               key={key}
               type="button"
-              onClick={() => setCurrencyTab(key)}
-              className={tabBtn(currencyTab === key)}
+              onClick={() => {
+                setCurrencyTab(key);
+                if (key !== "crypto") setCryptoSubtype("");
+                setPage(1);
+              }}
+              className={`relative ${tabBtn(currencyTab === key)}`}
               style={currencyTab === key ? { color: GREEN } : undefined}
             >
               {label}
@@ -428,7 +549,10 @@ const Transaction: React.FC = () => {
         >
           <button
             type="button"
-            onClick={() => setTypePill("all")}
+            onClick={() => {
+              setTypePill("all");
+              setPage(1);
+            }}
             className={segmentedPill(typePill === "all")}
             style={typePill === "all" ? { backgroundColor: GREEN } : undefined}
           >
@@ -436,7 +560,10 @@ const Transaction: React.FC = () => {
           </button>
           <button
             type="button"
-            onClick={() => setTypePill("deposits")}
+            onClick={() => {
+              setTypePill("deposits");
+              setPage(1);
+            }}
             className={segmentedPill(typePill === "deposits")}
             style={typePill === "deposits" ? { backgroundColor: GREEN } : undefined}
           >
@@ -444,7 +571,10 @@ const Transaction: React.FC = () => {
           </button>
           <button
             type="button"
-            onClick={() => setTypePill("withdrawals")}
+            onClick={() => {
+              setTypePill("withdrawals");
+              setPage(1);
+            }}
             className={segmentedPill(typePill === "withdrawals")}
             style={typePill === "withdrawals" ? { backgroundColor: GREEN } : undefined}
           >
@@ -452,7 +582,10 @@ const Transaction: React.FC = () => {
           </button>
           <button
             type="button"
-            onClick={() => setTypePill("bill")}
+            onClick={() => {
+              setTypePill("bill");
+              setPage(1);
+            }}
             className={segmentedPill(typePill === "bill")}
             style={typePill === "bill" ? { backgroundColor: GREEN } : undefined}
           >
@@ -463,7 +596,12 @@ const Transaction: React.FC = () => {
           <div className="relative">
             <select
               className={selectClass}
-              defaultValue=""
+              value={cryptoSubtype}
+              onChange={(e) => {
+                setCryptoSubtype(e.target.value);
+                setPage(1);
+              }}
+              disabled={currencyTab !== "crypto"}
               aria-label="Crypto transaction type"
               style={{ backgroundColor: FILTER_DROPDOWN_BG }}
             >
@@ -479,12 +617,15 @@ const Transaction: React.FC = () => {
           <div className="relative">
             <select
               className={selectClass}
-              defaultValue=""
+              value={statusFilter}
+              onChange={(e) => {
+                setStatusFilter(e.target.value);
+                setPage(1);
+              }}
               aria-label="Transaction status"
               style={{ backgroundColor: FILTER_DROPDOWN_BG }}
             >
-              <option value="">Tx Status</option>
-              <option value="all-status">All Status</option>
+              <option value="">All status</option>
               <option value="successful">Successful</option>
               <option value="pending">Pending</option>
               <option value="failed">Failed</option>
@@ -522,6 +663,11 @@ const Transaction: React.FC = () => {
             />
             <input
               type="search"
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
               placeholder="Search"
               className="w-full rounded-full border-0 py-3 pl-11 pr-5 text-sm text-white placeholder:text-white/60 focus:outline-none focus:ring-2 focus:ring-white/50"
               style={{ backgroundColor: LATEST_SEARCH_BG }}
@@ -552,61 +698,114 @@ const Transaction: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {txSample.map((row, i) => (
-                <tr
-                  key={row.id}
-                  className="align-middle"
-                  style={{ backgroundColor: i % 2 === 0 ? LATEST_ROW_A : LATEST_ROW_B }}
-                >
-                  <td className="px-5 py-5 align-middle">
-                    <input
-                      type="checkbox"
-                      className="h-4 w-4 rounded border-2 border-gray-400 bg-white accent-[#21D721] focus:ring-2 focus:ring-[#21D721]/40"
-                      aria-label={`Select ${row.name}`}
-                    />
-                  </td>
-                  <td className="px-5 py-5 align-middle">
-                    <div className="flex items-center gap-3">
-                      <img
-                        src={row.avatar}
-                        alt=""
-                        className="h-10 w-10 shrink-0 rounded-full object-cover ring-2 ring-white"
-                        width={40}
-                        height={40}
-                      />
-                      <span className="font-semibold text-gray-900">{row.name}</span>
-                    </div>
-                  </td>
-                  <td className="px-5 py-5 align-middle font-mono text-xs text-gray-700 md:text-sm">
-                    {row.id}
-                  </td>
-                  <td className="px-5 py-5 align-middle font-semibold text-gray-900">{row.amount}</td>
-                  <td className="px-5 py-5 align-middle">
-                    <span
-                      className="inline-flex rounded-full px-3 py-1 text-xs font-bold text-white"
-                      style={{ backgroundColor: STATUS_PILL }}
-                    >
-                      {row.status}
-                    </span>
-                  </td>
-                  <td className="px-5 py-5 align-middle text-gray-700">{row.type}</td>
-                  <td className="px-5 py-5 align-middle text-gray-700">{row.subType}</td>
-                  <td className="px-5 py-5 align-middle text-gray-700">{row.date}</td>
-                  <td className="px-5 py-5 align-middle">
-                    <button
-                      type="button"
-                      onClick={() => setDetailRow(row)}
-                      className="whitespace-nowrap rounded-full px-4 py-2 text-xs font-bold text-white shadow-sm transition-opacity hover:opacity-90"
-                      style={{ backgroundColor: LATEST_ACTION_LIGHT }}
-                    >
-                      View Details
-                    </button>
+              {txQ.isLoading ? (
+                <tr>
+                  <td colSpan={9} className="px-5 py-10 text-center text-gray-500">
+                    Loading transactions…
                   </td>
                 </tr>
-              ))}
+              ) : txQ.isError ? (
+                <tr>
+                  <td colSpan={9} className="px-5 py-10 text-center text-red-600">
+                    {(txQ.error as Error)?.message ?? "Failed to load."}
+                  </td>
+                </tr>
+              ) : rows.length === 0 ? (
+                <tr>
+                  <td colSpan={9} className="px-5 py-10 text-center text-gray-500">
+                    No transactions match your filters.
+                  </td>
+                </tr>
+              ) : (
+                rows.map((row, i) => {
+                  const st = row.status.toLowerCase();
+                  const isPend = st === "pending";
+                  return (
+                    <tr
+                      key={`${row.id}-${i}`}
+                      className="align-middle"
+                      style={{ backgroundColor: i % 2 === 0 ? LATEST_ROW_A : LATEST_ROW_B }}
+                    >
+                      <td className="px-5 py-5 align-middle">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 rounded border-2 border-gray-400 bg-white accent-[#21D721] focus:ring-2 focus:ring-[#21D721]/40"
+                          aria-label={`Select ${row.name}`}
+                        />
+                      </td>
+                      <td className="px-5 py-5 align-middle">
+                        <div className="flex items-center gap-3">
+                          <img
+                            src={row.avatar}
+                            alt=""
+                            className="h-10 w-10 shrink-0 rounded-full object-cover ring-2 ring-white"
+                            width={40}
+                            height={40}
+                          />
+                          <span className="font-semibold text-gray-900">{row.name}</span>
+                        </div>
+                      </td>
+                      <td className="px-5 py-5 align-middle font-mono text-xs text-gray-700 md:text-sm">
+                        {row.id}
+                      </td>
+                      <td className="px-5 py-5 align-middle font-semibold text-gray-900">{row.amount}</td>
+                      <td className="px-5 py-5 align-middle">
+                        <span
+                          className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold"
+                          style={{
+                            backgroundColor: isPend ? "#FEF3C7" : STATUS_PILL,
+                            color: isPend ? "#92400E" : "#fff",
+                          }}
+                        >
+                          {isPend ? (
+                            <img src={PENDING_ICON} alt="" className="h-4 w-4 object-contain" width={16} height={16} />
+                          ) : null}
+                          {row.status}
+                        </span>
+                      </td>
+                      <td className="px-5 py-5 align-middle text-gray-700">{row.type}</td>
+                      <td className="px-5 py-5 align-middle text-gray-700">{row.subType}</td>
+                      <td className="px-5 py-5 align-middle text-gray-700">{row.date}</td>
+                      <td className="px-5 py-5 align-middle">
+                        <button
+                          type="button"
+                          onClick={() => setDetailRow(row)}
+                          className="whitespace-nowrap rounded-full px-4 py-2 text-xs font-bold text-white shadow-sm transition-opacity hover:opacity-90"
+                          style={{ backgroundColor: LATEST_ACTION_LIGHT }}
+                        >
+                          View Details
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>
+        {txQ.data && txQ.data.last_page > 1 ? (
+          <div className="flex items-center justify-center gap-3 border-t border-gray-100 px-4 py-3">
+            <button
+              type="button"
+              disabled={page <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              className="rounded-lg px-3 py-1.5 text-sm font-medium text-gray-700 disabled:opacity-40"
+            >
+              Previous
+            </button>
+            <span className="text-sm text-gray-600">
+              Page {page} of {txQ.data.last_page}
+            </span>
+            <button
+              type="button"
+              disabled={page >= txQ.data.last_page}
+              onClick={() => setPage((p) => p + 1)}
+              className="rounded-lg px-3 py-1.5 text-sm font-medium text-gray-700 disabled:opacity-40"
+            >
+              Next
+            </button>
+          </div>
+        ) : null}
       </section>
     </div>
   );

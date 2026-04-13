@@ -32,6 +32,18 @@ export interface UserActivity {
   occurredAt: string;
 }
 
+/** Linked bank accounts for withdrawals (admin view). */
+export interface WithdrawalAccount {
+  id: string;
+  userId: string;
+  /** Card title, e.g. "Account 1" */
+  label: string;
+  accountHolderName: string;
+  bankName: string;
+  accountNumber: string;
+  isDefault: boolean;
+}
+
 export const USERS: User[] = [
   {
     id: "1",
@@ -91,6 +103,45 @@ export const USERS: User[] = [
   },
 ];
 
+export const WITHDRAWAL_ACCOUNTS: WithdrawalAccount[] = [
+  {
+    id: "wa-1-1",
+    userId: "1",
+    label: "Account 1",
+    accountHolderName: "Qamardeen Abdul Malik",
+    bankName: "Access Bank",
+    accountNumber: "1234567890",
+    isDefault: true,
+  },
+  {
+    id: "wa-1-2",
+    userId: "1",
+    label: "Account 2",
+    accountHolderName: "Qamardeen Abdul Malik",
+    bankName: "GTBank",
+    accountNumber: "0123456789",
+    isDefault: false,
+  },
+  {
+    id: "wa-1-3",
+    userId: "1",
+    label: "Account 3",
+    accountHolderName: "Qamardeen Abdul Malik",
+    bankName: "First Bank",
+    accountNumber: "3088123456",
+    isDefault: false,
+  },
+  {
+    id: "wa-2-1",
+    userId: "2",
+    label: "Account 1",
+    accountHolderName: "Chioma Ada Okafor",
+    bankName: "Zenith Bank",
+    accountNumber: "2087654321",
+    isDefault: true,
+  },
+];
+
 export const USER_ACTIVITIES: UserActivity[] = [
   {
     id: "act-1-1",
@@ -144,6 +195,10 @@ export function getActivitiesForUser(userId: string): UserActivity[] {
   return USER_ACTIVITIES.filter((a) => a.userId === userId).sort(
     (a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime()
   );
+}
+
+export function getWithdrawalAccountsForUser(userId: string): WithdrawalAccount[] {
+  return WITHDRAWAL_ACCOUNTS.filter((a) => a.userId === userId);
 }
 
 /** Profile detail grid — e.g. "09 Oct, 2025 - 07:22 AM" */

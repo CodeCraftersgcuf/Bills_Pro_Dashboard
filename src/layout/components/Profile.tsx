@@ -1,15 +1,16 @@
 import React from "react";
+import { getAdminUser } from "../../api/authSession";
+import { avatarUrlForName } from "../../utils/avatarUrl";
 
-interface ProfileProps {
-  name?: string;
-  /** Optional avatar URL; defaults to a neutral placeholder */
-  avatarUrl?: string;
-}
+const Profile: React.FC = () => {
+  const u = getAdminUser();
+  const name =
+    u?.name?.trim() ||
+    [u?.first_name, u?.last_name].filter(Boolean).join(" ").trim() ||
+    u?.email?.split("@")[0] ||
+    "Admin";
+  const avatarUrl = avatarUrlForName(name);
 
-const Profile: React.FC<ProfileProps> = ({
-  name = "Admin",
-  avatarUrl = "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=96&h=96&fit=crop&crop=face",
-}) => {
   return (
     <div className="flex items-center gap-3">
       <img
@@ -19,7 +20,7 @@ const Profile: React.FC<ProfileProps> = ({
         width={44}
         height={44}
       />
-      <h2 className="text-gray-900 text-base md:text-lg font-normal">Hey {name}</h2>
+      <h2 className="text-base font-normal text-gray-900 md:text-lg">Hey {name}</h2>
     </div>
   );
 };

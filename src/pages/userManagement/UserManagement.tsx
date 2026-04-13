@@ -1,16 +1,35 @@
 import React, { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Users, UserPlus, UserCheck, ChevronDown, Plus } from "lucide-react";
 import StatCard from "../../components/StatCard";
 import LatestUsersTable from "../../components/LatestUsersTable";
 import AddUserModal from "../../components/AddUserModal";
+import { fetchAdminStats } from "../../api/adminStats";
+import { getAdminToken } from "../../api/authToken";
+import type { DateRangePreset } from "../../utils/dateRange";
 
 const GREEN = "#1B800F";
 
 type StatusFilter = "all" | "active" | "banned";
+type KycFilter = "all" | "verified" | "pending";
+
+function fmtInt(n: number): string {
+  return n.toLocaleString("en-NG");
+}
 
 const UserManagement: React.FC = () => {
+  const hasToken = Boolean(getAdminToken());
   const [status, setStatus] = useState<StatusFilter>("all");
+  const [kycFilter, setKycFilter] = useState<KycFilter>("all");
+  const [datePreset, setDatePreset] = useState<DateRangePreset>("all");
   const [addUserOpen, setAddUserOpen] = useState(false);
+
+  const statsQ = useQuery({
+    queryKey: ["admin", "stats"],
+    queryFn: fetchAdminStats,
+    enabled: hasToken,
+  });
+  const s = statsQ.data;
 
   const pillBase =
     "rounded-full px-4 py-2.5 text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1B800F]/40";
@@ -28,10 +47,11 @@ const UserManagement: React.FC = () => {
           <div className="relative inline-flex w-full sm:w-auto">
             <select
               className="w-full cursor-pointer appearance-none rounded-xl border border-white/25 bg-white/15 py-3 pl-4 pr-10 text-sm font-medium text-white hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/40 sm:w-[200px]"
-              defaultValue="range"
+              value={datePreset}
+              onChange={(e) => setDatePreset(e.target.value as DateRangePreset)}
               aria-label="Select date range"
             >
-              <option value="range" className="text-gray-900">
+              <option value="all" className="text-gray-900">
                 Select Date
               </option>
               <option value="7d" className="text-gray-900">
@@ -51,9 +71,24 @@ const UserManagement: React.FC = () => {
           </div>
         </div>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3 md:gap-5">
-          <StatCard icon={Users} label="Total Users" value="20,000" hint="View total users" />
-          <StatCard icon={UserPlus} label="New Users" value="500" hint="View new users" />
-          <StatCard icon={UserCheck} label="Active Users" value="500" hint="View active users" />
+          <StatCard
+            icon={Users}
+            label="Total Users"
+            value={s ? fmtInt(s.users_total) : "—"}
+            hint="All registered users"
+          />
+          <StatCard
+            icon={UserPlus}
+            label="New Users (30d)"
+            value={s ? fmtInt(s.new_users_30d) : "—"}
+            hint="Joined in the last 30 days"
+          />
+          <StatCard
+            icon={UserCheck}
+            label="Active Users"
+            value={s ? fmtInt(s.active_users) : "—"}
+            hint="Account status active"
+          />
         </div>
       </section>
 
@@ -98,15 +133,20 @@ const UserManagement: React.FC = () => {
               <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
             </div>
             <div className="relative">
-              <select className={selectPill} defaultValue="kyc" aria-label="KYC status filter">
-                <option value="kyc" className="text-gray-900">
-                  KYC Status
+              <select
+                className={selectPill}
+                value={kycFilter}
+                onChange={(e) => setKycFilter(e.target.value as KycFilter)}
+                aria-label="KYC status filter"
+              >
+                <option value="all" className="text-gray-900">
+                  KYC — All
                 </option>
                 <option value="verified" className="text-gray-900">
-                  Verified
+                  KYC — Verified
                 </option>
                 <option value="pending" className="text-gray-900">
-                  Pending
+                  KYC — Pending review
                 </option>
               </select>
               <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
@@ -126,7 +166,13 @@ const UserManagement: React.FC = () => {
 
       <AddUserModal open={addUserOpen} onClose={() => setAddUserOpen(false)} />
 
-      <LatestUsersTable />
+      <LatestUsersTable
+        title="Users"
+        perPage={15}
+        accountStatus={status === "all" ? "all" : status === "active" ? "active" : "banned"}
+        kycFilter={kycFilter}
+        datePreset={datePreset}
+      />
     </div>
   );
 };

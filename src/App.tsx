@@ -3,6 +3,7 @@ import Layout from "./layout/Layout";
 import "./App.css";
 
 import Login from "./auth/Login";
+import RequireAuth from "./auth/RequireAuth";
 import Dashboard from "./pages/dashboard/Dashboard";
 import UserManagement from "./pages/userManagement/UserManagement";
 import UserProfile from "./pages/userManagement/UserProfile";
@@ -13,6 +14,8 @@ import WalletManagement from "./pages/walletManagement/WalletManagement";
 import Rates from "./pages/rates/Rates";
 import BillPayments from "./pages/billPayments/BillPayments";
 import MasterWallet from "./pages/masterWallet/MasterWallet";
+import ReceivedCrypto from "./pages/receivedCrypto/ReceivedCrypto";
+import CryptoVendors from "./pages/cryptoVendors/CryptoVendors";
 import Analytics from "./pages/analytics/Analytics";
 import Support from "./pages/support/Support";
 import Notification from "./pages/notification/Notification";
@@ -26,23 +29,27 @@ const App: React.FC = () => {
         <div className="flex h-full min-h-0 flex-1 flex-col">
           <Routes>
             <Route path="/login" element={<Login />} />
-            <Route path="/" element={<Layout />}>
-              <Route index element={<Navigate to="/dashboard" replace />} />
-              <Route path="dashboard" element={<Dashboard />} />
-              <Route path="user/management" element={<UserManagement />} />
-              <Route path="user/management/profile/:userId" element={<UserProfile />} />
-              <Route path="transaction" element={<Transaction />} />
-              <Route path="kyc" element={<KYC />} />
-              <Route path="virtual-cards" element={<VirtualCards />} />
-              <Route path="wallet-management" element={<WalletManagement />} />
-              <Route path="rates" element={<Rates />} />
-              <Route path="bill-payments" element={<BillPayments />} />
-              <Route path="master-wallet" element={<MasterWallet />} />
-              <Route path="analytics" element={<Analytics />} />
-              <Route path="support" element={<Support />} />
-              <Route path="notification" element={<Notification />} />
-              <Route path="settings" element={<Setting />} />
-              <Route path="settings/admin/:adminId" element={<AdminDetail />} />
+            <Route element={<RequireAuth />}>
+              <Route path="/" element={<Layout />}>
+                <Route index element={<Navigate to="/dashboard" replace />} />
+                <Route path="dashboard" element={<Dashboard />} />
+                <Route path="user/management" element={<UserManagement />} />
+                <Route path="user/management/profile/:userId" element={<UserProfile />} />
+                <Route path="transaction" element={<Transaction />} />
+                <Route path="kyc" element={<KYC />} />
+                <Route path="virtual-cards" element={<VirtualCards />} />
+                <Route path="wallet-management" element={<WalletManagement />} />
+                <Route path="rates" element={<Rates />} />
+                <Route path="bill-payments" element={<BillPayments />} />
+                <Route path="master-wallet" element={<MasterWallet />} />
+                <Route path="received-crypto" element={<ReceivedCrypto />} />
+                <Route path="crypto-vendors" element={<CryptoVendors />} />
+                <Route path="analytics" element={<Analytics />} />
+                <Route path="support" element={<Support />} />
+                <Route path="notification" element={<Notification />} />
+                <Route path="settings" element={<Setting />} />
+                <Route path="settings/admin/:adminId" element={<AdminDetail />} />
+              </Route>
             </Route>
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>

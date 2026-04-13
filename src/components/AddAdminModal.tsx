@@ -12,9 +12,25 @@ const inputClass =
 export interface AddAdminModalProps {
   open: boolean;
   onClose: () => void;
+  onSave?: (payload: {
+    first_name?: string;
+    last_name?: string;
+    email: string;
+    password: string;
+  }) => Promise<void> | void;
+  saving?: boolean;
+  title?: string;
+  submitLabel?: string;
 }
 
-const AddAdminModal: React.FC<AddAdminModalProps> = ({ open, onClose }) => {
+const AddAdminModal: React.FC<AddAdminModalProps> = ({
+  open,
+  onClose,
+  onSave,
+  saving = false,
+  title = "Add New Admin",
+  submitLabel = "Save",
+}) => {
   const [showPassword, setShowPassword] = useState(false);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -46,9 +62,18 @@ const AddAdminModal: React.FC<AddAdminModalProps> = ({ open, onClose }) => {
 
   if (!open) return null;
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    onClose();
+    if (!onSave) {
+      onClose();
+      return;
+    }
+    await onSave({
+      first_name: firstName.trim() || undefined,
+      last_name: lastName.trim() || undefined,
+      email: loginEmail.trim(),
+      password: loginPassword,
+    });
   };
 
   return (
@@ -68,9 +93,7 @@ const AddAdminModal: React.FC<AddAdminModalProps> = ({ open, onClose }) => {
       >
         <div className="border-b border-gray-300/80 px-6 pb-4 pt-6">
           <div className="flex items-center justify-between gap-4">
-            <h2 id="add-admin-modal-title" className="text-xl font-bold text-gray-900">
-              Add New Admin
-            </h2>
+            <h2 id="add-admin-modal-title" className="text-xl font-bold text-gray-900">{title}</h2>
             <button
               type="button"
               onClick={onClose}
@@ -159,6 +182,7 @@ const AddAdminModal: React.FC<AddAdminModalProps> = ({ open, onClose }) => {
                 placeholder="Enter login email"
                 className={inputClass}
                 autoComplete="email"
+                required
               />
             </div>
             <div>
@@ -174,6 +198,8 @@ const AddAdminModal: React.FC<AddAdminModalProps> = ({ open, onClose }) => {
                   placeholder="Enter login password"
                   className={`${inputClass} pr-12`}
                   autoComplete="new-password"
+                  minLength={8}
+                  required
                 />
                 <button
                   type="button"
@@ -189,10 +215,11 @@ const AddAdminModal: React.FC<AddAdminModalProps> = ({ open, onClose }) => {
 
           <button
             type="submit"
+            disabled={saving}
             className="mt-8 w-full rounded-full py-3.5 text-sm font-bold text-white shadow-md transition-opacity hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#1B800F]/50"
             style={{ backgroundColor: GREEN }}
           >
-            Save
+            {saving ? "Saving..." : submitLabel}
           </button>
         </form>
       </div>

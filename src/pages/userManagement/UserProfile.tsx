@@ -1,19 +1,29 @@
 import React, { useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { Check, MoreVertical, Search } from "lucide-react";
 import {
-  getUserById,
-  getActivitiesForUser,
-  formatProfileDateTime,
-  formatActivityDateTime,
-} from "../../data/users";
+  banAdminUser,
+  fetchAdminUser,
+  fetchAdminUserTimeline,
+  resetAdminUserPassword,
+  revokeUserTokens,
+  suspendAdminUser,
+  type AdminUserRow,
+  unsuspendAdminUser,
+} from "../../api/adminUsers";
+import type { User } from "../../data/users";
 import AddUserModal from "../../components/AddUserModal";
+import WithdrawalAccountsModal from "../../components/WithdrawalAccountsModal";
+import UserProfileWalletTab from "../../components/UserProfileWalletTab";
+import UserProfileVirtualCardsTab from "../../components/UserProfileVirtualCardsTab";
+import UserProfileTransactionsTab from "../../components/UserProfileTransactionsTab";
+import { avatarUrlForName } from "../../utils/avatarUrl";
 
 const GREEN = "#1B800F";
 const BRIGHT_GREEN = "#21D721";
 const LATEST_SEARCH_BG = "#189016";
 
-/** Figma profile card */
 const PANEL_LEFT = "#0B4305";
 const PANEL_RIGHT = "#1B800F";
 const ACCENT_BTN = "#42AC36";
@@ -33,17 +43,157 @@ function DetailField({ label, value }: { label: string; value: string }) {
   );
 }
 
+function DetailFieldButton({
+  label,
+  value,
+  onClick,
+}: {
+  label: string;
+  value: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex min-w-0 flex-col gap-[13px] rounded-xl text-left ring-offset-2 ring-offset-transparent transition-opacity hover:opacity-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
+    >
+      <span className="text-xs font-normal leading-4 text-white/50">{label}</span>
+      <span className="break-words text-sm font-normal leading-[19px] text-white underline decoration-white/30 underline-offset-2 hover:decoration-white">
+        {value}
+      </span>
+    </button>
+  );
+}
+
+function adminToLegacyUser(u: AdminUserRow): User {
+  const profileFullName =
+    u.name?.trim() || [u.first_name, u.last_name].filter(Boolean).join(" ").trim() || u.email || "User";
+  const kycStatus = u.kyc_completed ? "verified" : "pending";
+  return {
+    id: String(u.id),
+    publicName: profileFullName,
+    profileFullName,
+    firstName: u.first_name ?? "",
+    lastName: u.last_name ?? "",
+    email: u.email ?? "",
+    phone: u.phone_number ?? "",
+    walletBalanceDisplay: "N0",
+    avatarUrl: avatarUrlForName(profileFullName),
+    kycStatus,
+    dateRegistered: u.created_at ?? new Date().toISOString(),
+    lastLogin: u.created_at ?? new Date().toISOString(),
+  };
+}
+
+function formatActivityDateTime(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString();
+}
+
 const UserProfile: React.FC = () => {
   const { userId } = useParams<{ userId: string }>();
   const navigate = useNavigate();
+  const qc = useQueryClient();
   const [tab, setTab] = useState<ProfileTab>("details");
   const [editDetailsOpen, setEditDetailsOpen] = useState(false);
+  const [withdrawalAccountsOpen, setWithdrawalAccountsOpen] = useState(false);
+  const [actionNotice, setActionNotice] = useState<string | null>(null);
 
-  const user = useMemo(() => (userId ? getUserById(userId) : undefined), [userId]);
-  const activities = useMemo(() => (userId ? getActivitiesForUser(userId) : []), [userId]);
+  const userQ = useQuery({
+    queryKey: ["admin", "user", userId],
+    queryFn: () => fetchAdminUser(userId!),
+    enabled: Boolean(userId),
+  });
 
-  if (!userId || !user) {
+  const timelineQ = useQuery({
+    queryKey: ["admin", "user-timeline", userId],
+    queryFn: () => fetchAdminUserTimeline(userId!, 30),
+    enabled: Boolean(userId),
+  });
+
+  const refreshUserState = async () => {
+    await Promise.all([
+      qc.invalidateQueries({ queryKey: ["admin", "user", userId] }),
+      qc.invalidateQueries({ queryKey: ["admin", "user-timeline", userId] }),
+    ]);
+  };
+
+  const suspendMut = useMutation({
+    mutationFn: () => suspendAdminUser(userId!, "Suspended by admin"),
+    onSuccess: async () => {
+      setActionNotice("User suspended.");
+      await refreshUserState();
+    },
+  });
+  const unsuspendMut = useMutation({
+    mutationFn: () => unsuspendAdminUser(userId!),
+    onSuccess: async () => {
+      setActionNotice("User reactivated.");
+      await refreshUserState();
+    },
+  });
+  const banMut = useMutation({
+    mutationFn: () => banAdminUser(userId!, "Banned by admin"),
+    onSuccess: async () => {
+      setActionNotice("User banned.");
+      await refreshUserState();
+    },
+  });
+  const revokeMut = useMutation({
+    mutationFn: () => revokeUserTokens(userId!),
+    onSuccess: async () => {
+      setActionNotice("All user sessions revoked.");
+      await refreshUserState();
+    },
+  });
+  const resetMut = useMutation({
+    mutationFn: () => resetAdminUserPassword(userId!),
+    onSuccess: async (data) => {
+      setActionNotice(`Temporary password: ${data.temporary_password}`);
+      await refreshUserState();
+    },
+  });
+
+  const user = useMemo(() => (userQ.data ? adminToLegacyUser(userQ.data) : null), [userQ.data]);
+
+  const activities = useMemo(() => {
+    const t = timelineQ.data?.transactions ?? [];
+    return t.map((row, i) => ({
+      id: `tx-${i}-${String((row as { id?: unknown }).id ?? i)}`,
+      userId: userId ?? "",
+      activity: `${String((row as { type?: string }).type ?? "txn")} · ${String((row as { status?: string }).status ?? "")}`,
+      occurredAt: String((row as { created_at?: string }).created_at ?? new Date().toISOString()),
+    }));
+  }, [timelineQ.data, userId]);
+
+  const withdrawalAccounts: never[] = [];
+
+  const bankAccountSummary = "Linked accounts are managed in the mobile app (no admin list yet).";
+  const accountStatusLc = String(userQ.data?.account_status ?? "").toLowerCase();
+
+  if (!userId) {
     return <Navigate to="/user/management" replace />;
+  }
+
+  if (userQ.isError) {
+    return (
+      <div className="mx-auto max-w-[1600px] p-6">
+        <p className="text-red-600">{(userQ.error as Error)?.message ?? "User not found."}</p>
+        <button type="button" className="mt-2 text-sm text-[#1B800F] underline" onClick={() => navigate("/user/management")}>
+          Back
+        </button>
+      </div>
+    );
+  }
+
+  if (userQ.isLoading || !user) {
+    return (
+      <div className="mx-auto max-w-[1600px] p-6">
+        <p className="text-gray-600">Loading user…</p>
+      </div>
+    );
   }
 
   const tabs: { id: ProfileTab; label: string }[] = [
@@ -81,6 +231,12 @@ const UserProfile: React.FC = () => {
         </div>
       </div>
 
+      {actionNotice ? (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+          {actionNotice}
+        </div>
+      ) : null}
+
       {tab === "details" && (
         <>
           <div
@@ -91,29 +247,10 @@ const UserProfile: React.FC = () => {
               boxShadow: "inset 5px 5px 30px rgba(0, 128, 0, 0.25)",
             }}
           >
-            {/* Left — #0B4305 + lens streaks */}
             <div
               className="relative flex w-full flex-col items-center overflow-hidden px-6 pb-10 pt-10 text-center md:w-[430px] md:max-w-[430px] md:shrink-0 md:px-8 md:pb-10 md:pt-10"
               style={{ backgroundColor: PANEL_LEFT }}
             >
-              <div
-                className="pointer-events-none absolute h-[325px] w-[23px] bg-white opacity-[0.12]"
-                style={{
-                  filter: "blur(50px)",
-                  transform: "rotate(24.36deg)",
-                  right: "15%",
-                  top: "-18%",
-                }}
-              />
-              <div
-                className="pointer-events-none absolute h-[301px] w-[42px] bg-white opacity-[0.08]"
-                style={{
-                  filter: "blur(100px)",
-                  transform: "rotate(24.36deg)",
-                  left: "-5%",
-                  bottom: "-8%",
-                }}
-              />
               <div className="relative flex w-full max-w-[320px] flex-col items-center">
                 <div
                   className="flex h-[116px] w-[116px] items-center justify-center overflow-hidden rounded-full"
@@ -142,14 +279,14 @@ const UserProfile: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setEditDetailsOpen(true)}
-                    className="h-[60px] min-w-0 flex-1 max-w-[176px] rounded-full text-sm font-normal leading-[19px] text-white transition-opacity hover:opacity-95"
+                    className="h-[60px] min-w-0 max-w-[176px] flex-1 rounded-full text-sm font-normal leading-[19px] text-white transition-opacity hover:opacity-95"
                     style={{ backgroundColor: ACCENT_BTN }}
                   >
                     Edit Details
                   </button>
                   <button
                     type="button"
-                    className="h-[60px] min-w-0 flex-1 max-w-[176px] rounded-full bg-white text-sm font-normal leading-[19px] text-black transition-colors hover:bg-gray-50"
+                    className="h-[60px] min-w-0 max-w-[176px] flex-1 rounded-full bg-white text-sm font-normal leading-[19px] text-black transition-colors hover:bg-gray-50"
                   >
                     KYC Details
                   </button>
@@ -157,13 +294,13 @@ const UserProfile: React.FC = () => {
               </div>
             </div>
 
-            {/* Right — #1B800F + dividers */}
             <div className="flex flex-1 flex-col px-6 pb-8 pt-8 md:px-10 md:pb-10 md:pt-9" style={{ backgroundColor: PANEL_RIGHT }}>
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <h2 className="text-[30px] font-bold leading-[41px] text-white">User Details</h2>
                 <div className="flex items-center gap-3">
                   <button
                     type="button"
+                    onClick={() => setWithdrawalAccountsOpen(true)}
                     className="flex h-[35px] min-w-[119px] items-center justify-center rounded-full px-4 text-[10px] font-normal leading-[14px] text-white transition-opacity hover:opacity-90"
                     style={{ backgroundColor: ACCENT_BTN }}
                   >
@@ -182,8 +319,8 @@ const UserProfile: React.FC = () => {
               <div className="my-6 h-px w-full shrink-0 md:my-7" style={{ backgroundColor: DIVIDER }} />
 
               <div className="grid grid-cols-1 gap-8 sm:grid-cols-3 sm:gap-x-8 sm:gap-y-0">
-                <DetailField label="First Name" value={user.firstName} />
-                <DetailField label="Last Name" value={user.lastName} />
+                <DetailField label="First Name" value={user.firstName || "—"} />
+                <DetailField label="Last Name" value={user.lastName || "—"} />
                 <DetailField label="Email" value={user.email} />
               </div>
 
@@ -191,22 +328,66 @@ const UserProfile: React.FC = () => {
 
               <div className="grid grid-cols-1 gap-8 sm:grid-cols-3 sm:gap-x-8 sm:gap-y-0">
                 <DetailField label="Phone Number" value={user.phone} />
-                <DetailField label="Date Registered" value={formatProfileDateTime(user.dateRegistered)} />
-                <DetailField label="Last Login" value={formatProfileDateTime(user.lastLogin)} />
+                <DetailField label="Date Registered" value={new Date(user.dateRegistered).toLocaleString()} />
+                <DetailField label="Account" value={userQ.data?.account_status ?? "—"} />
+              </div>
+
+              <div className="my-6 h-px w-full shrink-0 md:my-7" style={{ backgroundColor: DIVIDER }} />
+
+              <div className="grid grid-cols-1 gap-8 sm:max-w-md">
+                <DetailFieldButton label="Bank Account" value={bankAccountSummary} onClick={() => setWithdrawalAccountsOpen(true)} />
               </div>
             </div>
           </div>
 
           <div>
-            <button
-              type="button"
-              className="rounded-full bg-[#E8E8E8] px-5 py-2.5 text-sm font-semibold text-gray-800 shadow-sm hover:bg-[#DDDDDD]"
-            >
-              Bulk Action
-            </button>
+            <div className="flex flex-wrap gap-2">
+              {accountStatusLc === "active" ? (
+                <button
+                  type="button"
+                  onClick={() => suspendMut.mutate()}
+                  disabled={suspendMut.isPending}
+                  className="rounded-full bg-[#E8E8E8] px-5 py-2.5 text-sm font-semibold text-gray-800 shadow-sm hover:bg-[#DDDDDD] disabled:opacity-60"
+                >
+                  Suspend
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => unsuspendMut.mutate()}
+                  disabled={unsuspendMut.isPending}
+                  className="rounded-full bg-[#E8E8E8] px-5 py-2.5 text-sm font-semibold text-gray-800 shadow-sm hover:bg-[#DDDDDD] disabled:opacity-60"
+                >
+                  Unsuspend
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => banMut.mutate()}
+                disabled={banMut.isPending}
+                className="rounded-full bg-[#FEE2E2] px-5 py-2.5 text-sm font-semibold text-[#B91C1C] shadow-sm hover:bg-[#FECACA] disabled:opacity-60"
+              >
+                Ban User
+              </button>
+              <button
+                type="button"
+                onClick={() => revokeMut.mutate()}
+                disabled={revokeMut.isPending}
+                className="rounded-full bg-[#E8E8E8] px-5 py-2.5 text-sm font-semibold text-gray-800 shadow-sm hover:bg-[#DDDDDD] disabled:opacity-60"
+              >
+                Revoke Sessions
+              </button>
+              <button
+                type="button"
+                onClick={() => resetMut.mutate()}
+                disabled={resetMut.isPending}
+                className="rounded-full bg-[#E8E8E8] px-5 py-2.5 text-sm font-semibold text-gray-800 shadow-sm hover:bg-[#DDDDDD] disabled:opacity-60"
+              >
+                Reset Password
+              </button>
+            </div>
           </div>
 
-          {/* User Activity */}
           <section className="overflow-hidden rounded-3xl bg-white shadow-md">
             <div
               className="flex flex-col gap-4 px-5 py-4 md:flex-row md:items-center md:justify-between md:px-7 md:py-5"
@@ -243,23 +424,37 @@ const UserProfile: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {activities.map((row, i) => (
-                    <tr
-                      key={row.id}
-                      className="align-middle"
-                      style={{ backgroundColor: i % 2 === 0 ? "#F9F9F9" : "#FFFFFF" }}
-                    >
-                      <td className="px-5 py-4 align-middle">
-                        <input
-                          type="checkbox"
-                          className="h-4 w-4 rounded-none border-2 border-gray-400 bg-white accent-[#21D721]"
-                          aria-label={`Select ${row.activity}`}
-                        />
+                  {timelineQ.isLoading ? (
+                    <tr>
+                      <td colSpan={3} className="px-5 py-6 text-center text-gray-500">
+                        Loading activity…
                       </td>
-                      <td className="px-5 py-4 font-medium text-gray-900">{row.activity}</td>
-                      <td className="px-5 py-4 text-gray-700">{formatActivityDateTime(row.occurredAt)}</td>
                     </tr>
-                  ))}
+                  ) : activities.length === 0 ? (
+                    <tr>
+                      <td colSpan={3} className="px-5 py-6 text-center text-gray-500">
+                        No recent transactions.
+                      </td>
+                    </tr>
+                  ) : (
+                    activities.map((row, i) => (
+                      <tr
+                        key={row.id}
+                        className="align-middle"
+                        style={{ backgroundColor: i % 2 === 0 ? "#F9F9F9" : "#FFFFFF" }}
+                      >
+                        <td className="px-5 py-4 align-middle">
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 rounded-none border-2 border-gray-400 bg-white accent-[#21D721]"
+                            aria-label={`Select ${row.activity}`}
+                          />
+                        </td>
+                        <td className="px-5 py-4 font-medium text-gray-900">{row.activity}</td>
+                        <td className="px-5 py-4 text-gray-700">{formatActivityDateTime(row.occurredAt)}</td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
@@ -267,20 +462,19 @@ const UserProfile: React.FC = () => {
         </>
       )}
 
-      {tab !== "details" && (
-        <div className="rounded-3xl border border-gray-200 bg-[#F3F4F6] p-12 text-center text-gray-600 shadow-sm">
-          <p className="text-lg font-semibold text-gray-800">
-            {tabs.find((t) => t.id === tab)?.label}
-          </p>
-          <p className="mt-2 text-sm">This section will load data from the API when connected.</p>
-        </div>
-      )}
+      {tab === "wallet" && <UserProfileWalletTab user={user} />}
 
-      <AddUserModal
-        open={editDetailsOpen}
-        onClose={() => setEditDetailsOpen(false)}
-        mode="edit"
-        user={user}
+      {tab === "virtual-cards" && <UserProfileVirtualCardsTab user={user} />}
+
+      {tab === "transactions" && <UserProfileTransactionsTab user={user} />}
+
+      <AddUserModal open={editDetailsOpen} onClose={() => setEditDetailsOpen(false)} mode="edit" user={user} />
+
+      <WithdrawalAccountsModal
+        open={withdrawalAccountsOpen}
+        onClose={() => setWithdrawalAccountsOpen(false)}
+        accounts={withdrawalAccounts}
+        userDisplayName={user.profileFullName}
       />
     </div>
   );

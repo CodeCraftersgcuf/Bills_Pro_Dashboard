@@ -4,10 +4,14 @@ import { useFormik } from "formik";
 import * as Yup from "yup";
 import { Eye, EyeOff } from "lucide-react";
 import loginHero from "../assets/login_image.png";
+import { API_BASE_URL } from "../api/apiConfig";
+import { setAdminToken } from "../api/authToken";
+import { setAdminUser } from "../api/authSession";
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
 
   const formik = useFormik({
     initialValues: {
@@ -18,8 +22,53 @@ const Login: React.FC = () => {
       email: Yup.string().email("Invalid email address").required("Email is required"),
       password: Yup.string().min(6, "Minimum 6 characters").required("Password is required"),
     }),
-    onSubmit: () => {
-      navigate("/dashboard");
+    onSubmit: async (values, { setSubmitting }) => {
+      setLoginError(null);
+      try {
+        const res = await fetch(`${API_BASE_URL.replace(/\/$/, "")}/auth/login`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify({ email: values.email, password: values.password }),
+        });
+        const json = (await res.json()) as {
+          success?: boolean;
+          message?: string;
+          data?: {
+            token?: string;
+            user?: {
+              id: number;
+              email?: string | null;
+              name?: string | null;
+              first_name?: string | null;
+              last_name?: string | null;
+              is_admin?: boolean;
+            };
+          };
+        };
+        if (!res.ok || !json.success || !json.data?.token) {
+          throw new Error(json.message || "Login failed");
+        }
+        if (!json.data.user?.is_admin) {
+          throw new Error("This account is not authorized for the admin dashboard.");
+        }
+        setAdminToken(json.data.token);
+        setAdminUser({
+          id: json.data.user.id,
+          email: json.data.user.email ?? null,
+          name: json.data.user.name,
+          first_name: json.data.user.first_name,
+          last_name: json.data.user.last_name,
+          is_admin: json.data.user.is_admin,
+        });
+        navigate("/dashboard");
+      } catch (e) {
+        setLoginError(e instanceof Error ? e.message : "Login failed");
+      } finally {
+        setSubmitting(false);
+      }
     },
   });
 
@@ -106,11 +155,14 @@ const Login: React.FC = () => {
               )}
             </div>
 
+            {loginError ? <p className="text-sm text-red-600">{loginError}</p> : null}
+
             <button
               type="submit"
-              className="w-full py-3.5 rounded-full font-bold text-white text-[15px] mt-2 transition-opacity hover:opacity-95 active:opacity-90 bg-[#22A35C] shadow-sm"
+              disabled={formik.isSubmitting}
+              className="w-full py-3.5 rounded-full font-bold text-white text-[15px] mt-2 transition-opacity hover:opacity-95 active:opacity-90 bg-[#22A35C] shadow-sm disabled:opacity-60"
             >
-              Login
+              {formik.isSubmitting ? "Signing in…" : "Login"}
             </button>
           </form>
         </div>

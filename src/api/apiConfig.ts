@@ -1,5 +1,5 @@
-// API Configuration
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
+// API root: either `https://host` or `https://host/api` — httpClient dedupes `api/` in paths.
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://billspro.hmstech.org/api";
 
 export const apiConfig = {
   baseURL: API_BASE_URL,
@@ -12,5 +12,6 @@ export const apiConfig = {
 // API Routes - Keep folder structure but routes removed
 // Add your routes here as needed
 
+export { API_BASE_URL };
 export default apiConfig;
 
