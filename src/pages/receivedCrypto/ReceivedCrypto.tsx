@@ -20,6 +20,17 @@ function txHash(meta: Record<string, unknown> | null): string {
   return typeof h === "string" ? h : "—";
 }
 
+function custodyLabel(status?: string | null): { label: string; cls: string } {
+  const s = String(status ?? "").toLowerCase();
+  if (s === "disbursed") {
+    return { label: "Disbursed", cls: "bg-[#DCFCE7] text-[#166534]" };
+  }
+  if (s === "partially_disbursed") {
+    return { label: "Partially disbursed", cls: "bg-[#FEF3C7] text-[#92400E]" };
+  }
+  return { label: "In wallet", cls: "bg-[#E5E7EB] text-[#374151]" };
+}
+
 const ReceivedCrypto: React.FC = () => {
   const hasToken = Boolean(getAdminToken());
   const qc = useQueryClient();
@@ -198,19 +209,20 @@ const ReceivedCrypto: React.FC = () => {
                   <th className="px-3 py-3 font-semibold text-gray-700">Amount</th>
                   <th className="px-3 py-3 font-semibold text-gray-700">Tx hash</th>
                   <th className="px-3 py-3 font-semibold text-gray-700">VA available</th>
+                  <th className="px-3 py-3 font-semibold text-gray-700">State</th>
                   <th className="px-3 py-3 font-semibold text-gray-700">Sweep</th>
                 </tr>
               </thead>
               <tbody>
                 {depositsQ.isLoading ? (
                   <tr>
-                    <td colSpan={7} className="px-4 py-10 text-center text-gray-500">
+                    <td colSpan={8} className="px-4 py-10 text-center text-gray-500">
                       Loading…
                     </td>
                   </tr>
                 ) : rows.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-4 py-10 text-center text-gray-500">
+                    <td colSpan={8} className="px-4 py-10 text-center text-gray-500">
                       No deposits found.
                     </td>
                   </tr>
@@ -228,6 +240,11 @@ const ReceivedCrypto: React.FC = () => {
                       </td>
                       <td className="px-3 py-2 text-gray-800">
                         {r.virtual_account_hint?.available_balance ?? "—"}
+                      </td>
+                      <td className="px-3 py-2">
+                        <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${custodyLabel(r.custody_status).cls}`}>
+                          {custodyLabel(r.custody_status).label}
+                        </span>
                       </td>
                       <td className="px-3 py-2">
                         <button

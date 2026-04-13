@@ -37,6 +37,7 @@ export interface CryptoDepositRow {
   created_at: string | null;
   user?: { id: number; name: string | null; email: string | null };
   virtual_account_hint: VirtualAccountHint | null;
+  custody_status?: string | null;
 }
 
 /** Custody ledger: one row per on-chain credit (links to user `transactions`). */
