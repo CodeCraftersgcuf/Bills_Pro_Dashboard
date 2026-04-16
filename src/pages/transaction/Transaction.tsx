@@ -14,7 +14,12 @@ import StatCard from "../../components/StatCard";
 import { fetchAdminStats } from "../../api/adminStats";
 import { fetchAdminTransactions, type AdminTransactionRow } from "../../api/adminTransactions";
 import { avatarUrlForName } from "../../utils/avatarUrl";
-import { presetToFromTo, type DateRangePreset } from "../../utils/dateRange";
+import {
+  presetToFromTo,
+  defaultCustomRangeLocal,
+  type DateRangePreset,
+} from "../../utils/dateRange";
+import { humanizeTransactionSubtype } from "../../utils/humanizeApiLabel";
 
 const GREEN = "#1B800F";
 /** Segmented filter track + dropdown fills */
@@ -294,12 +299,6 @@ function formatMoneyAmount(v: string | number | null | undefined, currency: stri
   return `${n.toLocaleString()} ${currency || ""}`.trim();
 }
 
-function humanizeSubtype(t: AdminTransactionRow): string {
-  const cat = (t.category || "").replace(/_/g, " ");
-  const ty = (t.type || "").replace(/_/g, " ");
-  return cat || ty || "—";
-}
-
 function toTxRow(t: AdminTransactionRow): TxRow {
   const u = t.user;
   const name = u?.name?.trim() || u?.email || "—";
@@ -316,7 +315,7 @@ function toTxRow(t: AdminTransactionRow): TxRow {
     amount,
     status: statusLabel,
     type: isNaira ? "Naira" : "Crypto",
-    subType: humanizeSubtype(t),
+    subType: humanizeTransactionSubtype(t),
     date: formatTableDate(t.created_at ?? null),
     detail: {
       amount,
@@ -351,7 +350,22 @@ const Transaction: React.FC = () => {
   const [page, setPage] = useState(1);
   const [detailRow, setDetailRow] = useState<TxRow | null>(null);
   const [datePreset, setDatePreset] = useState<DateRangePreset>("all");
-  const { from, to } = presetToFromTo(datePreset);
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
+
+  useEffect(() => {
+    if (datePreset !== "custom") return;
+    if (!customFrom || !customTo) {
+      const d = defaultCustomRangeLocal();
+      setCustomFrom(d.from);
+      setCustomTo(d.to);
+    }
+  }, [datePreset, customFrom, customTo]);
+
+  const { from, to } = presetToFromTo(
+    datePreset,
+    datePreset === "custom" ? { from: customFrom, to: customTo } : undefined
+  );
 
   const statsQ = useQuery({
     queryKey: ["admin", "stats"],
@@ -453,35 +467,64 @@ const Transaction: React.FC = () => {
         className="rounded-3xl p-6 md:p-8 text-white shadow-md"
         style={{ backgroundColor: GREEN }}
       >
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 md:mb-8">
-          <h1 className="text-2xl md:text-3xl font-bold">Transactions</h1>
-          <div className="relative inline-flex w-full sm:w-auto">
-            <select
-              className="appearance-none w-full sm:w-[200px] rounded-xl bg-white/15 border border-white/25 text-white text-sm font-medium pl-4 pr-10 py-3 cursor-pointer hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/40"
-              value={datePreset}
-              onChange={(e) => {
-                setDatePreset(e.target.value as DateRangePreset);
-                setPage(1);
-              }}
-              aria-label="Select date range"
-            >
-              <option value="all" className="text-gray-900">
-                Select Date
-              </option>
-              <option value="7d" className="text-gray-900">
-                Last 7 days
-              </option>
-              <option value="30d" className="text-gray-900">
-                Last 30 days
-              </option>
-              <option value="90d" className="text-gray-900">
-                Last 90 days
-              </option>
-            </select>
-            <ChevronDown
-              className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/90 pointer-events-none"
-              strokeWidth={2}
-            />
+        <div className="mb-6 flex flex-col gap-4 md:mb-8 sm:flex-row sm:items-start sm:justify-between">
+          <h1 className="text-2xl font-bold md:text-3xl">Transactions</h1>
+          <div className="flex w-full flex-col gap-3 sm:w-auto sm:min-w-[220px]">
+            <div className="relative w-full sm:inline-flex sm:w-auto">
+              <select
+                className="w-full cursor-pointer appearance-none rounded-xl border border-white/25 bg-white/15 py-3 pl-4 pr-10 text-sm font-medium text-white hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/40 sm:w-[200px]"
+                value={datePreset}
+                onChange={(e) => {
+                  setDatePreset(e.target.value as DateRangePreset);
+                  setPage(1);
+                }}
+                aria-label="Select date range"
+              >
+                <option value="all" className="text-gray-900">
+                  Select Date
+                </option>
+                <option value="7d" className="text-gray-900">
+                  Last 7 days
+                </option>
+                <option value="30d" className="text-gray-900">
+                  Last 30 days
+                </option>
+                <option value="90d" className="text-gray-900">
+                  Last 90 days
+                </option>
+                <option value="custom" className="text-gray-900">
+                  Custom range
+                </option>
+              </select>
+              <ChevronDown
+                className="pointer-events-none absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-white/90"
+                strokeWidth={2}
+              />
+            </div>
+            {datePreset === "custom" ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="text-xs font-medium text-white/85">From</label>
+                <input
+                  type="date"
+                  value={customFrom}
+                  onChange={(e) => {
+                    setCustomFrom(e.target.value);
+                    setPage(1);
+                  }}
+                  className="min-w-0 flex-1 rounded-lg border border-white/35 bg-white/15 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-white/40"
+                />
+                <label className="text-xs font-medium text-white/85">To</label>
+                <input
+                  type="date"
+                  value={customTo}
+                  onChange={(e) => {
+                    setCustomTo(e.target.value);
+                    setPage(1);
+                  }}
+                  className="min-w-0 flex-1 rounded-lg border border-white/35 bg-white/15 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-white/40"
+                />
+              </div>
+            ) : null}
           </div>
         </div>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3 md:gap-5">

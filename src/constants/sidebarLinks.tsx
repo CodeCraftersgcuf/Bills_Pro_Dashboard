@@ -15,6 +15,7 @@ import {
   Headphones,
   Bell,
   Settings,
+  FileText,
 } from "lucide-react";
 
 export interface SidebarLinkItem {
@@ -30,6 +31,12 @@ export const Sidebar_links: SidebarLinkItem[] = [
   { name: "Transactions", link: "/transaction", icon: Receipt, sublinks: [] },
   { name: "KYC", link: "/kyc", icon: ShieldCheck, sublinks: [] },
   { name: "Virtual Cards", link: "/virtual-cards", icon: CreditCard, sublinks: [] },
+  {
+    name: "Card legal (mobile)",
+    link: "/legal/virtual-card",
+    icon: FileText,
+    sublinks: [],
+  },
   { name: "Wallet Management", link: "/wallet-management", icon: Wallet, sublinks: [] },
   { name: "Rates", link: "/rates", icon: Tag, sublinks: [] },
   { name: "Bill Payments", link: "/bill-payments", icon: UsersRound, sublinks: [] },

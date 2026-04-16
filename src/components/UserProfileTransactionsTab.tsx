@@ -6,6 +6,7 @@ import NairaTxReceiptModal from "./NairaTxReceiptModal";
 import type { ProfileTxRow } from "../data/userTransactions";
 import StatCard from "./StatCard";
 import { fetchAdminTransactions, type AdminTransactionRow } from "../api/adminTransactions";
+import { humanizeApiLabelOrDash, humanizeTransactionSubtype } from "../utils/humanizeApiLabel";
 
 const GREEN = "#1B800F";
 const FILTER_TRACK_BG = "#E8E8E8";
@@ -75,7 +76,12 @@ function mapAdminTxToProfile(r: AdminTransactionRow, userId: string): ProfileTxR
     amount,
     status,
     type,
-    subType: String(r.type ?? r.category ?? r.description ?? "—"),
+    subType: (() => {
+      const raw = String(r.type ?? r.category ?? r.description ?? "").trim();
+      if (!raw) return "—";
+      if (r.type || r.category) return humanizeTransactionSubtype(r);
+      return humanizeApiLabelOrDash(raw);
+    })(),
     date: r.created_at ? new Date(r.created_at).toLocaleString() : "—",
     cryptoTxKind,
   };

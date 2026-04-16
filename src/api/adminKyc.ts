@@ -8,6 +8,9 @@ export type KycRecord = {
   last_name: string | null;
   email: string | null;
   status: string | null;
+  date_of_birth?: string | null;
+  nin_number?: string | null;
+  bvn_number?: string | null;
   created_at: string | null;
   user?: {
     id: number;

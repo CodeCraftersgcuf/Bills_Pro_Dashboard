@@ -11,7 +11,12 @@ import {
 import { getAdminToken } from "../../api/authToken";
 import { ApiError } from "../../api/httpClient";
 import { avatarUrlForName } from "../../utils/avatarUrl";
-import { presetToFromTo, type DateRangePreset } from "../../utils/dateRange";
+import {
+  presetToFromTo,
+  defaultCustomRangeLocal,
+  type DateRangePreset,
+} from "../../utils/dateRange";
+import { humanizeApiLabel } from "../../utils/humanizeApiLabel";
 
 const HEADER_GREEN = "#21D721";
 const HEADER_SEARCH = "#189016";
@@ -96,9 +101,15 @@ const BillReceiptModal: React.FC<{
     </div>
   );
 
+  const txTypeDisplay = receipt
+    ? (() => {
+        const h = humanizeApiLabel(receipt.transaction_type);
+        return h ? h.toLowerCase() : receipt.transaction_type.replace(/_/g, " ").toLowerCase();
+      })()
+    : "";
   const subtitle =
     receipt &&
-    `You have successfully completed ${receipt.transaction_type.toLowerCase()} of ${receipt.subtitle_amount_display}`;
+    `You have successfully completed ${txTypeDisplay} of ${receipt.subtitle_amount_display}`;
 
   return (
     <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 sm:p-6" role="presentation">
@@ -185,7 +196,7 @@ const BillReceiptModal: React.FC<{
                 className="mt-5 w-full rounded-full py-3.5 text-sm font-semibold text-gray-900 transition-colors hover:bg-gray-300/80"
                 style={{ backgroundColor: "#E5E5E5" }}
                 onClick={() => {
-                  const text = `Bill payment\n${receipt.transaction_type}\nAmount: ${receipt.amount_display}\nTotal: ${receipt.total_amount_display}\nTxn: ${receipt.transaction_id}`;
+                  const text = `Bill payment\n${humanizeApiLabel(receipt.transaction_type)}\nAmount: ${receipt.amount_display}\nTotal: ${receipt.total_amount_display}\nTxn: ${receipt.transaction_id}`;
                   if (typeof navigator !== "undefined" && navigator.share) {
                     void navigator.share({ title: "Receipt", text }).catch(() => {});
                   } else {
@@ -213,7 +224,22 @@ const BillPayments: React.FC = () => {
   const [page, setPage] = useState(1);
   const [detailRow, setDetailRow] = useState<BillPaymentListRow | null>(null);
   const [datePreset, setDatePreset] = useState<DateRangePreset>("all");
-  const { from, to } = presetToFromTo(datePreset);
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
+
+  useEffect(() => {
+    if (datePreset !== "custom") return;
+    if (!customFrom || !customTo) {
+      const d = defaultCustomRangeLocal();
+      setCustomFrom(d.from);
+      setCustomTo(d.to);
+    }
+  }, [datePreset, customFrom, customTo]);
+
+  const { from, to } = presetToFromTo(
+    datePreset,
+    datePreset === "custom" ? { from: customFrom, to: customTo } : undefined
+  );
 
   const summaryQ = useQuery({
     queryKey: ["admin", "bill-payments-summary"],
@@ -249,22 +275,49 @@ const BillPayments: React.FC = () => {
     <div className="mx-auto max-w-[1600px] space-y-6 md:space-y-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <h1 className="text-2xl font-bold text-gray-900 md:text-3xl">Bill Payments</h1>
-        <div className="relative w-full sm:w-auto sm:min-w-[200px]">
-          <select
-            className="w-full cursor-pointer appearance-none rounded-xl border border-gray-200 bg-white py-3 pl-4 pr-10 text-sm font-medium text-gray-800 shadow-sm"
-            value={datePreset}
-            onChange={(e) => {
-              setDatePreset(e.target.value as DateRangePreset);
-              setPage(1);
-            }}
-            aria-label="Select date range"
-          >
-            <option value="all">Select Date</option>
-            <option value="7d">Last 7 days</option>
-            <option value="30d">Last 30 days</option>
-            <option value="90d">Last 90 days</option>
-          </select>
-          <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-500" />
+        <div className="flex w-full flex-col gap-3 sm:w-auto sm:min-w-[220px]">
+          <div className="relative w-full">
+            <select
+              className="w-full cursor-pointer appearance-none rounded-xl border border-gray-200 bg-white py-3 pl-4 pr-10 text-sm font-medium text-gray-800 shadow-sm"
+              value={datePreset}
+              onChange={(e) => {
+                setDatePreset(e.target.value as DateRangePreset);
+                setPage(1);
+              }}
+              aria-label="Select date range"
+            >
+              <option value="all">Select Date</option>
+              <option value="7d">Last 7 days</option>
+              <option value="30d">Last 30 days</option>
+              <option value="90d">Last 90 days</option>
+              <option value="custom">Custom range</option>
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-500" />
+          </div>
+          {datePreset === "custom" ? (
+            <div className="flex w-full flex-wrap items-center gap-2">
+              <span className="text-xs font-medium text-gray-600">From</span>
+              <input
+                type="date"
+                value={customFrom}
+                onChange={(e) => {
+                  setCustomFrom(e.target.value);
+                  setPage(1);
+                }}
+                className="min-w-0 flex-1 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-[#1B800F]/30"
+              />
+              <span className="text-xs font-medium text-gray-600">To</span>
+              <input
+                type="date"
+                value={customTo}
+                onChange={(e) => {
+                  setCustomTo(e.target.value);
+                  setPage(1);
+                }}
+                className="min-w-0 flex-1 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-[#1B800F]/30"
+              />
+            </div>
+          ) : null}
         </div>
       </div>
 

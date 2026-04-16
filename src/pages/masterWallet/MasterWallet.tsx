@@ -6,6 +6,7 @@ import { fetchMasterWalletSummary, fetchMasterWalletTransactions } from "../../a
 import { fetchMasterWalletsMeta } from "../../api/adminCryptoTreasury";
 import { getAdminToken } from "../../api/authToken";
 import { presetToFromTo, type DateRangePreset } from "../../utils/dateRange";
+import { humanizeApiLabelOrDash } from "../../utils/humanizeApiLabel";
 
 const TABLE_HEADER_GREEN = "#21D721";
 const TABLE_SEARCH_BG = "#189016";
@@ -273,7 +274,7 @@ const MasterWallet: React.FC = () => {
                     </td>
                     <td className="px-4 py-3 font-medium text-gray-900">{r.wallet_name}</td>
                     <td className="px-4 py-3 text-gray-800">{r.provider}</td>
-                    <td className="px-4 py-3 text-gray-800">{r.transaction_type}</td>
+                    <td className="px-4 py-3 text-gray-800">{humanizeApiLabelOrDash(r.transaction_type)}</td>
                     <td className="px-4 py-3 text-gray-800">{r.destination}</td>
                     <td className="px-4 py-3 font-mono text-xs text-gray-800">{r.transaction_id}</td>
                     <td className="px-4 py-3 font-medium text-gray-900">

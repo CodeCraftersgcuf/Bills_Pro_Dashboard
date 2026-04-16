@@ -11,9 +11,12 @@ import {
   type AdminUserDepositAddress,
   type VirtualAccountDto,
 } from "../api/adminUsers";
+import { fetchAdminDepositFeeQuote } from "../api/adminDepositFeeQuote";
 import { fetchAdminDeposit } from "../api/adminDeposits";
 import { fetchAdminTransaction, type AdminTransactionRow } from "../api/adminTransactions";
 import { adminAdjustCrypto, adminAdjustFiat } from "../api/adminAdjustments";
+import { getAdminToken } from "../api/authToken";
+import { humanizeApiLabelOrDash } from "../utils/humanizeApiLabel";
 import CryptoWalletsModal from "./CryptoWalletsModal";
 import CryptoDepositModal from "./CryptoDepositModal";
 import CryptoWithdrawModal from "./CryptoWithdrawModal";
@@ -125,7 +128,7 @@ function mapRawTransaction(t: Record<string, unknown>): WalletTxRow {
     amount: amountStr,
     status: mapWalletStatus(String(t.status ?? "")),
     type: "Naira",
-    subType: String(t.type ?? t.category ?? t.description ?? "—"),
+    subType: humanizeApiLabelOrDash(String(t.type ?? t.category ?? t.description ?? "")),
     date: formatDisplayDate(String(t.created_at ?? "")),
     detailRef: { kind: "transaction", id: lookup },
   };
@@ -282,8 +285,8 @@ function WalletNairaDetailModal({
   const txFields = (t: AdminTransactionRow) => (
     <dl className="space-y-2 text-sm">
       <DetailLine label="Transaction ID" value={String(t.transaction_id ?? t.id ?? "—")} />
-      <DetailLine label="Type" value={String(t.type ?? "—")} />
-      <DetailLine label="Status" value={String(t.status ?? "—")} />
+      <DetailLine label="Type" value={humanizeApiLabelOrDash(String(t.type ?? ""))} />
+      <DetailLine label="Status" value={humanizeApiLabelOrDash(String(t.status ?? ""))} />
       <DetailLine label="Amount" value={String(t.amount ?? "—")} />
       <DetailLine label="Currency" value={String(t.currency ?? "—")} />
       <DetailLine label="Reference" value={String(t.reference ?? "—")} />
@@ -491,6 +494,13 @@ const WalletPanel: React.FC<WalletPanelProps> = ({ user }) => {
     enabled: Boolean(uid),
   });
 
+  const depositFeeQuoteQ = useQuery({
+    queryKey: ["admin", "deposit-fee-quote"],
+    queryFn: fetchAdminDepositFeeQuote,
+    enabled: Boolean(getAdminToken()),
+    staleTime: 60_000,
+  });
+
   const refreshWalletData = async () => {
     await Promise.all([
       qc.invalidateQueries({ queryKey: ["admin", "user-fiat-wallets", uid] }),
@@ -558,6 +568,24 @@ const WalletPanel: React.FC<WalletPanelProps> = ({ user }) => {
     }
     return nairaDisplay.includes("₦") ? nairaDisplay : `₦${nairaDisplay}`;
   }, [nairaDisplay]);
+
+  const fiatDepositFeeFormatted = useMemo(() => {
+    const q = depositFeeQuoteQ.data;
+    const d = q?.display_fee_ngn;
+    const f = q?.fee_ngn;
+    const n =
+      typeof d === "number" && Number.isFinite(d)
+        ? d
+        : typeof f === "number" && Number.isFinite(f)
+          ? f
+          : null;
+    if (n !== null) {
+      return `N${n.toLocaleString("en-NG", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    }
+    if (depositFeeQuoteQ.isLoading) return "…";
+    if (depositFeeQuoteQ.isError) return "Unavailable";
+    return "—";
+  }, [depositFeeQuoteQ.data, depositFeeQuoteQ.isLoading, depositFeeQuoteQ.isError]);
 
   const cryptoBalanceDisplay = useMemo(
     () => cryptoTotalDisplay(virtualQ.data ?? []),
@@ -826,6 +854,7 @@ const WalletPanel: React.FC<WalletPanelProps> = ({ user }) => {
         onClose={() => setFiatDepositOpen(false)}
         balanceFormatted={balanceFormattedModal}
         bank={fiatBank}
+        feeFormatted={fiatDepositFeeFormatted}
       />
 
       <FiatWithdrawalModal

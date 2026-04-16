@@ -59,6 +59,7 @@ const Rates: React.FC = () => {
   const [fixedFee, setFixedFee] = useState("");
   const [pctFee, setPctFee] = useState("");
   const [minFee, setMinFee] = useState("");
+  const [feeUsd, setFeeUsd] = useState("");
 
   const metaQ = useQuery({
     queryKey: ["admin", "platform-rates-meta"],
@@ -84,6 +85,7 @@ const Rates: React.FC = () => {
     setFixedFee("");
     setPctFee("");
     setMinFee("");
+    setFeeUsd("");
   };
 
   const loadRow = (r: PlatformRateRow) => {
@@ -96,20 +98,26 @@ const Rates: React.FC = () => {
     setFixedFee(r.fixed_fee_ngn ?? "");
     setPctFee(r.percentage_fee ?? "");
     setMinFee(r.min_fee_ngn ?? "");
+    setFeeUsd(r.fee_usd ?? "");
   };
 
   const buildPayload = (): PlatformRatePayload | null => {
     if (!svc.trim()) return null;
+    const isVcCreation = tab === "virtual_card" && svc === "creation";
+    const cryptoFeesUsd = tab === "crypto" && (svc === "deposit" || svc === "withdrawal");
+    const cryptoBuySell = tab === "crypto" && (svc === "buy" || svc === "sell");
     const base: PlatformRatePayload = {
       category: tab,
       service_key: svc.trim(),
       sub_service_key: tab === "fiat" && subSvc.trim() ? subSvc.trim() : null,
       crypto_asset: tab === "crypto" && cryptoAsset.trim() ? cryptoAsset.trim() : null,
       network_key: tab === "crypto" && networkKey.trim() ? networkKey.trim() : null,
-      exchange_rate_ngn_per_usd: tab === "virtual_card" ? numOrNull(exchangeRate) : null,
-      fixed_fee_ngn: numOrNull(fixedFee) ?? 0,
-      percentage_fee: numOrNull(pctFee),
-      min_fee_ngn: tab === "fiat" ? numOrNull(minFee) : null,
+      exchange_rate_ngn_per_usd:
+        tab === "virtual_card" ? numOrNull(exchangeRate) : cryptoBuySell ? numOrNull(exchangeRate) : null,
+      fixed_fee_ngn: isVcCreation || cryptoFeesUsd || cryptoBuySell ? 0 : numOrNull(fixedFee) ?? 0,
+      percentage_fee: isVcCreation || cryptoBuySell ? null : numOrNull(pctFee),
+      min_fee_ngn: tab === "fiat" && svc === "bill_payment" ? numOrNull(minFee) : null,
+      fee_usd: isVcCreation || cryptoFeesUsd ? numOrNull(feeUsd) : undefined,
     };
     return base;
   };
@@ -178,6 +186,10 @@ const Rates: React.FC = () => {
   };
 
   const errMsg = (e: unknown) => (e instanceof ApiError ? e.message : e instanceof Error ? e.message : "Request failed");
+
+  const isCryptoFeesUsd =
+    tab === "crypto" && (svc === "deposit" || svc === "withdrawal");
+  const isCryptoExchangeOnly = tab === "crypto" && (svc === "buy" || svc === "sell");
 
   return (
     <div className="mx-auto max-w-[1600px] space-y-6 md:space-y-8">
@@ -305,40 +317,96 @@ const Rates: React.FC = () => {
             </>
           ) : null}
 
-          {tab === "virtual_card" ? (
-            <label className="flex flex-col gap-1 text-sm">
-              <span className="font-medium text-gray-700">Exchange rate (NGN per $1)</span>
+          {tab === "virtual_card" || isCryptoExchangeOnly ? (
+            <label className="flex flex-col gap-1 text-sm md:col-span-2">
+              <span className="font-medium text-gray-700">
+                {tab === "virtual_card"
+                  ? "Exchange rate (NGN per $1)"
+                  : "Exchange rate (₦ per 1 crypto unit — optional)"}
+              </span>
               <input
                 value={exchangeRate}
                 onChange={(e) => setExchangeRate(e.target.value)}
-                placeholder="e.g. 1500"
+                placeholder={tab === "virtual_card" ? "e.g. 1500" : "Leave empty to use wallet default"}
                 className="rounded-xl border border-gray-200 px-3 py-2.5 text-gray-900"
               />
+              {isCryptoExchangeOnly ? (
+                <span className="text-xs text-gray-500">
+                  Buy and sell use this price only — no percentage or flat fees are applied in the app.
+                </span>
+              ) : null}
             </label>
           ) : null}
 
-          <label className="flex flex-col gap-1 text-sm">
-            <span className="font-medium text-gray-700">Fixed fee (NGN)</span>
-            <input
-              value={fixedFee}
-              onChange={(e) => setFixedFee(e.target.value)}
-              placeholder="Fixed fee (in Naira)"
-              className="rounded-xl border border-gray-200 px-3 py-2.5 text-gray-900"
-            />
-          </label>
-
-          <label className="flex flex-col gap-1 text-sm">
-            <span className="font-medium text-gray-700">Percentage fee</span>
-            <div className="relative">
+          {tab === "virtual_card" && svc === "creation" ? (
+            <label className="flex flex-col gap-1 text-sm md:col-span-2">
+              <span className="font-medium text-gray-700">Card creation fee (USD)</span>
               <input
-                value={pctFee}
-                onChange={(e) => setPctFee(e.target.value)}
-                placeholder="0"
-                className="w-full rounded-xl border border-gray-200 py-2.5 pl-3 pr-9 text-gray-900"
+                value={feeUsd}
+                onChange={(e) => setFeeUsd(e.target.value)}
+                placeholder="e.g. 3"
+                className="rounded-xl border border-gray-200 px-3 py-2.5 text-gray-900"
               />
-              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">%</span>
-            </div>
-          </label>
+              <span className="text-xs text-gray-500">
+                Users pay this USD amount × the rate above in Naira. Leave empty to use server default from env.
+              </span>
+            </label>
+          ) : null}
+
+          {isCryptoFeesUsd ? (
+            <>
+              <label className="flex flex-col gap-1 text-sm">
+                <span className="font-medium text-gray-700">Fixed processing fee (USD)</span>
+                <input
+                  value={feeUsd}
+                  onChange={(e) => setFeeUsd(e.target.value)}
+                  placeholder="e.g. 1"
+                  className="rounded-xl border border-gray-200 px-3 py-2.5 text-gray-900"
+                />
+                <span className="text-xs text-gray-500">Flat fee in USD before percentage.</span>
+              </label>
+              <label className="flex flex-col gap-1 text-sm">
+                <span className="font-medium text-gray-700">Percentage fee (% of USD value)</span>
+                <div className="relative">
+                  <input
+                    value={pctFee}
+                    onChange={(e) => setPctFee(e.target.value)}
+                    placeholder="0"
+                    className="w-full rounded-xl border border-gray-200 py-2.5 pl-3 pr-9 text-gray-900"
+                  />
+                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">%</span>
+                </div>
+                <span className="text-xs text-gray-500">Applied to the crypto amount’s USD notional.</span>
+              </label>
+            </>
+          ) : null}
+
+          {!(tab === "virtual_card" && svc === "creation") && !isCryptoFeesUsd && !isCryptoExchangeOnly ? (
+            <>
+              <label className="flex flex-col gap-1 text-sm">
+                <span className="font-medium text-gray-700">Fixed fee (NGN)</span>
+                <input
+                  value={fixedFee}
+                  onChange={(e) => setFixedFee(e.target.value)}
+                  placeholder="Fixed fee (in Naira)"
+                  className="rounded-xl border border-gray-200 px-3 py-2.5 text-gray-900"
+                />
+              </label>
+
+              <label className="flex flex-col gap-1 text-sm">
+                <span className="font-medium text-gray-700">Percentage fee</span>
+                <div className="relative">
+                  <input
+                    value={pctFee}
+                    onChange={(e) => setPctFee(e.target.value)}
+                    placeholder="0"
+                    className="w-full rounded-xl border border-gray-200 py-2.5 pl-3 pr-9 text-gray-900"
+                  />
+                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">%</span>
+                </div>
+              </label>
+            </>
+          ) : null}
 
           {tab === "fiat" && svc === "bill_payment" ? (
             <label className="flex flex-col gap-1 text-sm">
@@ -428,15 +496,15 @@ const Rates: React.FC = () => {
                     <th className="px-4 py-3 font-semibold text-gray-700">Service</th>
                     <th className="px-4 py-3 font-semibold text-gray-700">Crypto</th>
                     <th className="px-4 py-3 font-semibold text-gray-700">Network</th>
-                    <th className="px-4 py-3 font-semibold text-gray-700">Fixed fee</th>
-                    <th className="px-4 py-3 font-semibold text-gray-700">Commission</th>
+                    <th className="px-4 py-3 font-semibold text-gray-700">Settings</th>
                   </>
                 )}
                 {tab === "virtual_card" && (
                   <>
                     <th className="px-4 py-3 font-semibold text-gray-700">Service</th>
                     <th className="px-4 py-3 font-semibold text-gray-700">Exchange rate</th>
-                    <th className="px-4 py-3 font-semibold text-gray-700">Fixed fee</th>
+                    <th className="px-4 py-3 font-semibold text-gray-700">Fee (USD)</th>
+                    <th className="px-4 py-3 font-semibold text-gray-700">Fixed (NGN)</th>
                     <th className="px-4 py-3 font-semibold text-gray-700">Commission</th>
                   </>
                 )}
@@ -490,9 +558,21 @@ const Rates: React.FC = () => {
                         <td className="px-4 py-3 text-gray-800">{serviceLabel(r.service_key)}</td>
                         <td className="px-4 py-3 text-gray-800">{r.crypto_asset ?? "Any"}</td>
                         <td className="px-4 py-3 text-gray-800">{r.network_key ?? "Any"}</td>
-                        <td className="px-4 py-3 text-gray-800">₦{Number(r.fixed_fee_ngn).toLocaleString("en-US")}</td>
-                        <td className="px-4 py-3 text-gray-800">
-                          {r.percentage_fee != null ? `${r.percentage_fee}%` : "—"}
+                        <td className="max-w-[320px] px-4 py-3 text-xs text-gray-800">
+                          {r.service_key === "buy" || r.service_key === "sell" ? (
+                            r.exchange_rate_ngn_per_usd != null && r.exchange_rate_ngn_per_usd !== "" ? (
+                              <span>₦{Number(r.exchange_rate_ngn_per_usd).toLocaleString("en-US")} / unit</span>
+                            ) : (
+                              <span className="text-gray-500">Wallet default rate</span>
+                            )
+                          ) : (
+                            <span>
+                              {r.fee_usd != null && r.fee_usd !== ""
+                                ? `$${Number(r.fee_usd).toLocaleString("en-US")} fixed`
+                                : "—"}
+                              {r.percentage_fee != null ? ` · ${r.percentage_fee}% of USD value` : ""}
+                            </span>
+                          )}
                         </td>
                       </>
                     )}
@@ -503,6 +583,9 @@ const Rates: React.FC = () => {
                           {r.exchange_rate_ngn_per_usd != null
                             ? `₦${Number(r.exchange_rate_ngn_per_usd).toLocaleString("en-US")} = $1`
                             : "—"}
+                        </td>
+                        <td className="px-4 py-3 text-gray-800">
+                          {r.fee_usd != null && r.fee_usd !== "" ? `$${Number(r.fee_usd).toLocaleString("en-US")}` : "—"}
                         </td>
                         <td className="px-4 py-3 text-gray-800">₦{Number(r.fixed_fee_ngn).toLocaleString("en-US")}</td>
                         <td className="px-4 py-3 text-gray-800">

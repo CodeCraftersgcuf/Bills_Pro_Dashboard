@@ -21,6 +21,7 @@ import Support from "./pages/support/Support";
 import Notification from "./pages/notification/Notification";
 import Setting from "./pages/setting/Setting";
 import AdminDetail from "./pages/setting/AdminDetail";
+import VirtualCardLegal from "./pages/legal/VirtualCardLegal";
 
 const App: React.FC = () => {
   return (
@@ -38,6 +39,7 @@ const App: React.FC = () => {
                 <Route path="transaction" element={<Transaction />} />
                 <Route path="kyc" element={<KYC />} />
                 <Route path="virtual-cards" element={<VirtualCards />} />
+                <Route path="legal/virtual-card" element={<VirtualCardLegal />} />
                 <Route path="wallet-management" element={<WalletManagement />} />
                 <Route path="rates" element={<Rates />} />
                 <Route path="bill-payments" element={<BillPayments />} />

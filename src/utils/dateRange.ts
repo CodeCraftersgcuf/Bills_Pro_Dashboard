@@ -1,7 +1,31 @@
-export type DateRangePreset = "all" | "7d" | "30d" | "90d";
+export type DateRangePreset = "all" | "7d" | "30d" | "90d" | "custom";
 
-export function presetToFromTo(preset: DateRangePreset): { from?: string; to?: string } {
+function toYmdLocal(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+/** Default window when user picks “Custom” (last 7 local days). */
+export function defaultCustomRangeLocal(): { from: string; to: string } {
+  const end = new Date();
+  const start = new Date();
+  start.setDate(end.getDate() - 7);
+  return { from: toYmdLocal(start), to: toYmdLocal(end) };
+}
+
+export function presetToFromTo(
+  preset: DateRangePreset,
+  custom?: { from: string; to: string }
+): { from?: string; to?: string } {
   if (preset === "all") {
+    return {};
+  }
+  if (preset === "custom") {
+    const f = custom?.from?.trim();
+    const t = custom?.to?.trim();
+    if (f && t) return { from: f, to: t };
     return {};
   }
 
@@ -10,10 +34,8 @@ export function presetToFromTo(preset: DateRangePreset): { from?: string; to?: s
   const start = new Date();
   start.setDate(end.getDate() - days);
 
-  const toYmd = (d: Date): string => d.toISOString().slice(0, 10);
-
   return {
-    from: toYmd(start),
-    to: toYmd(end),
+    from: toYmdLocal(start),
+    to: toYmdLocal(end),
   };
 }

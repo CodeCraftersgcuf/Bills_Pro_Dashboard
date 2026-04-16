@@ -6,8 +6,11 @@ const CARD_BG = "card-bg-geometric.png";
 /** Matches Bills Pro app `getCardColor` + 0.7 overlay on `card_background` */
 const CARD_TINT_RGBA: Record<string, string> = {
   green: "rgba(27, 128, 15, 0.72)",
-  brown: "rgba(139, 69, 19, 0.72)",
+  black: "rgba(17, 24, 39, 0.78)",
   purple: "rgba(107, 70, 193, 0.72)",
+  red: "rgba(220, 38, 38, 0.72)",
+  blue: "rgba(37, 99, 235, 0.72)",
+  brown: "rgba(17, 24, 39, 0.78)",
 };
 
 export function virtualCardBackgroundUrl(): string {

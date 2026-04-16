@@ -11,6 +11,9 @@ export type KycDetailsInitial = {
   lastName: string;
   email: string;
   status: string;
+  dateOfBirth?: string;
+  nin?: string;
+  bvn?: string;
 };
 
 interface KycDetailsModalProps {
@@ -20,9 +23,22 @@ interface KycDetailsModalProps {
   onApprove?: () => void;
   onReject?: (reason: string) => void;
   busy?: boolean;
+  /** When true, `GET /admin/kyc/{user}` is in flight — form is hidden until `initial` is set. */
+  loading?: boolean;
+  /** Shown when the KYC detail request failed (e.g. network or 403). */
+  errorMessage?: string | null;
 }
 
-const KycDetailsModal: React.FC<KycDetailsModalProps> = ({ open, onClose, initial, onApprove, onReject, busy = false }) => {
+const KycDetailsModal: React.FC<KycDetailsModalProps> = ({
+  open,
+  onClose,
+  initial,
+  onApprove,
+  onReject,
+  busy = false,
+  loading = false,
+  errorMessage = null,
+}) => {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
@@ -46,9 +62,9 @@ const KycDetailsModal: React.FC<KycDetailsModalProps> = ({ open, onClose, initia
     setLastName(initial.lastName);
     setEmail(initial.email);
     setStatus(initial.status);
-    setDob("");
-    setNin("");
-    setBvn("");
+    setDob(initial.dateOfBirth ?? "");
+    setNin(initial.nin ?? "");
+    setBvn(initial.bvn ?? "");
   }, [open, initial]);
 
   useEffect(() => {
@@ -70,7 +86,7 @@ const KycDetailsModal: React.FC<KycDetailsModalProps> = ({ open, onClose, initia
   };
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[200] flex min-h-0 items-center justify-center overflow-y-auto p-4 py-8">
       <button
         type="button"
         className="absolute inset-0 bg-black/45 backdrop-blur-[1px]"
@@ -81,10 +97,10 @@ const KycDetailsModal: React.FC<KycDetailsModalProps> = ({ open, onClose, initia
         role="dialog"
         aria-modal="true"
         aria-labelledby="kyc-details-modal-title"
-        className="relative z-[1] w-full max-w-[480px] overflow-hidden rounded-3xl bg-[#F3F4F6] shadow-2xl"
+        className="relative z-[1] flex w-full min-h-0 max-h-[min(90dvh,calc(100vh-2rem))] max-w-[480px] flex-col overflow-hidden rounded-3xl bg-[#F3F4F6] shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="border-b border-gray-300/70 px-6 pb-4 pt-6">
+        <div className="shrink-0 border-b border-gray-300/70 px-6 pb-4 pt-6">
           <div className="flex items-center justify-between gap-4">
             <h2 id="kyc-details-modal-title" className="text-xl font-bold text-gray-900">
               KYC Details
@@ -100,7 +116,15 @@ const KycDetailsModal: React.FC<KycDetailsModalProps> = ({ open, onClose, initia
           </div>
         </div>
 
-        <form onSubmit={handleSave} className="px-6 pb-6 pt-6">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 pb-6 pt-6 [-webkit-overflow-scrolling:touch]">
+        {loading ? (
+          <div className="py-8 text-center text-sm text-gray-600">Loading KYC…</div>
+        ) : errorMessage ? (
+          <div className="py-2">
+            <p className="text-sm text-red-600">{errorMessage}</p>
+          </div>
+        ) : (
+        <form onSubmit={handleSave} className="space-y-0">
           <div className="space-y-5">
             <div>
               <label className="mb-2 block text-sm font-medium text-gray-800">First name</label>
@@ -211,6 +235,8 @@ const KycDetailsModal: React.FC<KycDetailsModalProps> = ({ open, onClose, initia
             </button>
           </div>
         </form>
+        )}
+        </div>
       </div>
     </div>
   );

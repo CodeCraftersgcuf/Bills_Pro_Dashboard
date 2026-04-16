@@ -13,6 +13,7 @@ import {
 } from "../api/adminVirtualCards";
 import VirtualCardDetailsModal from "./VirtualCardDetailsModal";
 import { virtualCardSurfaceStyle } from "../utils/virtualCardSurface";
+import { humanizeApiLabelOrDash } from "../utils/humanizeApiLabel";
 
 const GREEN = "#1B800F";
 const FILTER_TRACK_BG = "#E8E8E8";
@@ -83,7 +84,7 @@ function mapApiTxRow(r: AdminVirtualCardTxRow, userId: string): VirtualCardTxRow
     amount: r.amount,
     status: r.status,
     cardLabel: r.card_label,
-    subType: r.sub_type,
+    subType: humanizeApiLabelOrDash(r.sub_type),
     date: r.date,
     kind: r.kind as VirtualCardTxKind,
     databaseId: r.database_id,

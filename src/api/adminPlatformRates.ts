@@ -13,6 +13,8 @@ export interface PlatformRateRow {
   fixed_fee_ngn: string;
   percentage_fee: string | null;
   min_fee_ngn: string | null;
+  /** Virtual card **creation** only — USD fee before conversion to NGN. */
+  fee_usd: string | null;
   is_active: boolean;
   updated_at: string | null;
   created_at: string | null;
@@ -56,6 +58,7 @@ export type PlatformRatePayload = {
   fixed_fee_ngn?: number | null;
   percentage_fee?: number | null;
   min_fee_ngn?: number | null;
+  fee_usd?: number | null;
   is_active?: boolean;
 };
 

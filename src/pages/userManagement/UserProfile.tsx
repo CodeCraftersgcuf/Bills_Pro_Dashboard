@@ -12,6 +12,8 @@ import {
   type AdminUserRow,
   unsuspendAdminUser,
 } from "../../api/adminUsers";
+import { approveKyc, fetchAdminKycDetail, rejectKyc, type KycRecord } from "../../api/adminKyc";
+import KycDetailsModal, { type KycDetailsInitial } from "../../components/KycDetailsModal";
 import type { User } from "../../data/users";
 import AddUserModal from "../../components/AddUserModal";
 import WithdrawalAccountsModal from "../../components/WithdrawalAccountsModal";
@@ -19,6 +21,7 @@ import UserProfileWalletTab from "../../components/UserProfileWalletTab";
 import UserProfileVirtualCardsTab from "../../components/UserProfileVirtualCardsTab";
 import UserProfileTransactionsTab from "../../components/UserProfileTransactionsTab";
 import { avatarUrlForName } from "../../utils/avatarUrl";
+import { humanizeApiLabelOrDash } from "../../utils/humanizeApiLabel";
 
 const GREEN = "#1B800F";
 const BRIGHT_GREEN = "#21D721";
@@ -92,6 +95,61 @@ function formatActivityDateTime(iso: string): string {
   return d.toLocaleString();
 }
 
+function nameToFirstLast(fullName: string): Pick<KycDetailsInitial, "firstName" | "lastName"> {
+  const parts = fullName.trim().split(/\s+/);
+  if (parts.length === 0) return { firstName: "", lastName: "" };
+  if (parts.length === 1) return { firstName: parts[0], lastName: "" };
+  return { firstName: parts[0], lastName: parts.slice(1).join(" ") };
+}
+
+function mapKycDbStatusToUi(s: string | null | undefined): KycDetailsInitial["status"] {
+  const st = String(s ?? "").toLowerCase();
+  if (st === "approved") return "Verified";
+  if (st === "pending") return "Pending";
+  if (st === "rejected") return "Rejected";
+  return "Unverified";
+}
+
+function formatDobInput(v: unknown): string {
+  if (v == null || v === "") return "";
+  const s = typeof v === "string" ? v : String(v);
+  const m = s.match(/^\d{4}-\d{2}-\d{2}/);
+  return m ? m[0] : s.slice(0, 10);
+}
+
+function mapKycShowToInitial(data: { user: Record<string, unknown>; kyc: KycRecord | null }): KycDetailsInitial {
+  const u = data.user;
+  const kyc = data.kyc;
+  const userName =
+    String(u.name ?? "")
+      .trim() ||
+    [u.first_name, u.last_name].filter(Boolean).join(" ").trim() ||
+    "User";
+  const fromParts = nameToFirstLast(userName);
+
+  if (kyc) {
+    return {
+      firstName: String(kyc.first_name ?? u.first_name ?? fromParts.firstName).trim(),
+      lastName: String(kyc.last_name ?? u.last_name ?? fromParts.lastName).trim(),
+      email: String(kyc.email ?? u.email ?? ""),
+      status: mapKycDbStatusToUi(kyc.status),
+      dateOfBirth: formatDobInput(kyc.date_of_birth),
+      nin: kyc.nin_number != null && kyc.nin_number !== "" ? String(kyc.nin_number) : "",
+      bvn: kyc.bvn_number != null && kyc.bvn_number !== "" ? String(kyc.bvn_number) : "",
+    };
+  }
+
+  return {
+    firstName: String(u.first_name ?? fromParts.firstName),
+    lastName: String(u.last_name ?? fromParts.lastName),
+    email: String(u.email ?? ""),
+    status: "Unverified",
+    dateOfBirth: "",
+    nin: "",
+    bvn: "",
+  };
+}
+
 const UserProfile: React.FC = () => {
   const { userId } = useParams<{ userId: string }>();
   const navigate = useNavigate();
@@ -99,6 +157,7 @@ const UserProfile: React.FC = () => {
   const [tab, setTab] = useState<ProfileTab>("details");
   const [editDetailsOpen, setEditDetailsOpen] = useState(false);
   const [withdrawalAccountsOpen, setWithdrawalAccountsOpen] = useState(false);
+  const [kycModalOpen, setKycModalOpen] = useState(false);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
 
   const userQ = useQuery({
@@ -112,6 +171,17 @@ const UserProfile: React.FC = () => {
     queryFn: () => fetchAdminUserTimeline(userId!, 30),
     enabled: Boolean(userId),
   });
+
+  const kycDetailQ = useQuery({
+    queryKey: ["admin", "kyc-detail", userId],
+    queryFn: () => fetchAdminKycDetail(userId!),
+    enabled: Boolean(userId) && kycModalOpen,
+  });
+
+  const kycModalInitial = useMemo((): KycDetailsInitial | null => {
+    if (!kycDetailQ.data) return null;
+    return mapKycShowToInitial(kycDetailQ.data);
+  }, [kycDetailQ.data]);
 
   const refreshUserState = async () => {
     await Promise.all([
@@ -156,6 +226,28 @@ const UserProfile: React.FC = () => {
     },
   });
 
+  const approveKycMut = useMutation({
+    mutationFn: () => approveKyc(userId!),
+    onSuccess: async () => {
+      setActionNotice("KYC approved.");
+      await refreshUserState();
+      await qc.invalidateQueries({ queryKey: ["admin", "kyc-detail", userId] });
+      await qc.invalidateQueries({ queryKey: ["admin", "kyc-list"] });
+      setKycModalOpen(false);
+    },
+  });
+
+  const rejectKycMut = useMutation({
+    mutationFn: (reason: string) => rejectKyc(userId!, reason),
+    onSuccess: async () => {
+      setActionNotice("KYC rejected.");
+      await refreshUserState();
+      await qc.invalidateQueries({ queryKey: ["admin", "kyc-detail", userId] });
+      await qc.invalidateQueries({ queryKey: ["admin", "kyc-list"] });
+      setKycModalOpen(false);
+    },
+  });
+
   const user = useMemo(() => (userQ.data ? adminToLegacyUser(userQ.data) : null), [userQ.data]);
 
   const activities = useMemo(() => {
@@ -163,7 +255,7 @@ const UserProfile: React.FC = () => {
     return t.map((row, i) => ({
       id: `tx-${i}-${String((row as { id?: unknown }).id ?? i)}`,
       userId: userId ?? "",
-      activity: `${String((row as { type?: string }).type ?? "txn")} · ${String((row as { status?: string }).status ?? "")}`,
+      activity: `${humanizeApiLabelOrDash(String((row as { type?: string }).type ?? "txn"))} · ${humanizeApiLabelOrDash(String((row as { status?: string }).status ?? ""))}`,
       occurredAt: String((row as { created_at?: string }).created_at ?? new Date().toISOString()),
     }));
   }, [timelineQ.data, userId]);
@@ -286,6 +378,7 @@ const UserProfile: React.FC = () => {
                   </button>
                   <button
                     type="button"
+                    onClick={() => setKycModalOpen(true)}
                     className="h-[60px] min-w-0 max-w-[176px] flex-1 rounded-full bg-white text-sm font-normal leading-[19px] text-black transition-colors hover:bg-gray-50"
                   >
                     KYC Details
@@ -475,6 +568,26 @@ const UserProfile: React.FC = () => {
         onClose={() => setWithdrawalAccountsOpen(false)}
         accounts={withdrawalAccounts}
         userDisplayName={user.profileFullName}
+      />
+
+      <KycDetailsModal
+        open={kycModalOpen}
+        onClose={() => {
+          setKycModalOpen(false);
+          void qc.removeQueries({ queryKey: ["admin", "kyc-detail", userId] });
+        }}
+        initial={kycModalInitial}
+        loading={kycDetailQ.isLoading}
+        errorMessage={
+          kycDetailQ.isError ? ((kycDetailQ.error as Error)?.message ?? "Could not load KYC.") : null
+        }
+        busy={approveKycMut.isPending || rejectKycMut.isPending}
+        onApprove={() => approveKycMut.mutate()}
+        onReject={
+          kycDetailQ.data?.kyc
+            ? (reason) => rejectKycMut.mutate(reason)
+            : undefined
+        }
       />
     </div>
   );
