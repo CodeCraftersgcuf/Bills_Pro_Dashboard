@@ -76,6 +76,20 @@ function nameToFirstLast(fullName: string): Pick<KycDetailsInitial, "firstName" 
   return { firstName: parts[0], lastName: parts.slice(1).join(" ") };
 }
 
+/** Normalise API date (Carbon date or ISO string) for `<input>` type text/date. */
+function formatKycDobForModal(v: unknown): string {
+  if (v == null || v === "") return "";
+  const s = typeof v === "string" ? v : String(v);
+  const m = s.match(/^\d{4}-\d{2}-\d{2}/);
+  return m ? m[0] : s.slice(0, 10);
+}
+
+function nonEmptyStr(v: unknown): string {
+  if (v == null || v === "") return "";
+  const t = String(v).trim();
+  return t;
+}
+
 function fmtInt(n: number): string {
   return n.toLocaleString("en-NG");
 }
@@ -147,26 +161,50 @@ const KYC: React.FC = () => {
   });
 
   const openKycDetails = (row: KycRecord | Record<string, unknown>, isUnverified: boolean) => {
-    const u = (isUnverified ? (row as Record<string, unknown>) : (row as KycRecord).user ?? {}) as Record<
-      string,
-      unknown
-    >;
-    const name =
-      (u as { name?: string })?.name ||
-      [(u as { first_name?: string }).first_name, (u as { last_name?: string }).last_name]
-        .filter(Boolean)
-        .join(" ")
+    if (isUnverified) {
+      const u = row as Record<string, unknown>;
+      const name =
+        String(u.name ?? "") ||
+        [u.first_name, u.last_name].filter(Boolean).join(" ").trim() ||
+        "User";
+      const email = String(u.email ?? "");
+      const { firstName, lastName } = nameToFirstLast(name);
+      setDetailInitial({
+        firstName,
+        lastName,
+        email,
+        status: "Unverified",
+        dateOfBirth: "",
+        nin: "",
+        bvn: "",
+      });
+      setDetailUserId(Number(u.id ?? 0) || null);
+      setDetailOpen(true);
+      return;
+    }
+
+    const kyc = row as KycRecord;
+    const u = (kyc.user ?? {}) as Record<string, unknown>;
+    const userName =
+      String(u.name ?? "")
         .trim() ||
+      [u.first_name, u.last_name].filter(Boolean).join(" ").trim() ||
       "User";
-    const email = String((u as { email?: string }).email ?? "");
-    const { firstName, lastName } = nameToFirstLast(name);
+    const fromParts = nameToFirstLast(userName);
+    const firstName = nonEmptyStr(kyc.first_name) || nonEmptyStr(u.first_name) || fromParts.firstName;
+    const lastName = nonEmptyStr(kyc.last_name) || nonEmptyStr(u.last_name) || fromParts.lastName;
+    const email = nonEmptyStr(kyc.email) || nonEmptyStr(u.email) || "";
+
     setDetailInitial({
       firstName,
       lastName,
       email,
-      status: mapApiStatus(row, isUnverified),
+      status: mapApiStatus(kyc, false),
+      dateOfBirth: formatKycDobForModal(kyc.date_of_birth),
+      nin: nonEmptyStr(kyc.nin_number),
+      bvn: nonEmptyStr(kyc.bvn_number),
     });
-    setDetailUserId(Number(u.id ?? (row as KycRecord).user_id ?? 0) || null);
+    setDetailUserId(Number(kyc.user_id) || Number(u.id) || null);
     setDetailOpen(true);
   };
 
