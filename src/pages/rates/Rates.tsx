@@ -98,12 +98,25 @@ const Rates: React.FC = () => {
     setFixedFee(r.fixed_fee_ngn ?? "");
     setPctFee(r.percentage_fee ?? "");
     setMinFee(r.min_fee_ngn ?? "");
-    setFeeUsd(r.fee_usd ?? "");
+    if (r.category === "virtual_card" && r.service_key === "fund") {
+      const rate = Number(r.exchange_rate_ngn_per_usd);
+      const legacyNgn = Number(r.fixed_fee_ngn);
+      if (r.fee_usd != null && r.fee_usd !== "") {
+        setFeeUsd(r.fee_usd);
+      } else if (rate > 0 && legacyNgn > 0) {
+        setFeeUsd(String(Math.round((legacyNgn / rate) * 10000) / 10000));
+      } else {
+        setFeeUsd("");
+      }
+    } else {
+      setFeeUsd(r.fee_usd ?? "");
+    }
   };
 
   const buildPayload = (): PlatformRatePayload | null => {
     if (!svc.trim()) return null;
     const isVcCreation = tab === "virtual_card" && svc === "creation";
+    const isVcFund = tab === "virtual_card" && svc === "fund";
     const cryptoFeesUsd = tab === "crypto" && (svc === "deposit" || svc === "withdrawal");
     const cryptoBuySell = tab === "crypto" && (svc === "buy" || svc === "sell");
     const base: PlatformRatePayload = {
@@ -114,10 +127,10 @@ const Rates: React.FC = () => {
       network_key: tab === "crypto" && networkKey.trim() ? networkKey.trim() : null,
       exchange_rate_ngn_per_usd:
         tab === "virtual_card" ? numOrNull(exchangeRate) : cryptoBuySell ? numOrNull(exchangeRate) : null,
-      fixed_fee_ngn: isVcCreation || cryptoFeesUsd || cryptoBuySell ? 0 : numOrNull(fixedFee) ?? 0,
+      fixed_fee_ngn: isVcCreation || isVcFund || cryptoFeesUsd || cryptoBuySell ? 0 : numOrNull(fixedFee) ?? 0,
       percentage_fee: isVcCreation || cryptoBuySell ? null : numOrNull(pctFee),
       min_fee_ngn: tab === "fiat" && svc === "bill_payment" ? numOrNull(minFee) : null,
-      fee_usd: isVcCreation || cryptoFeesUsd ? numOrNull(feeUsd) : undefined,
+      fee_usd: isVcCreation || cryptoFeesUsd || isVcFund ? numOrNull(feeUsd) : undefined,
     };
     return base;
   };
@@ -190,6 +203,15 @@ const Rates: React.FC = () => {
   const isCryptoFeesUsd =
     tab === "crypto" && (svc === "deposit" || svc === "withdrawal");
   const isCryptoExchangeOnly = tab === "crypto" && (svc === "buy" || svc === "sell");
+  const isVcFund = tab === "virtual_card" && svc === "fund";
+  const showLegacyFixedNgn =
+    !isCryptoFeesUsd &&
+    !isCryptoExchangeOnly &&
+    !(tab === "virtual_card" && (svc === "creation" || svc === "fund"));
+  const showStandalonePctFee =
+    !isCryptoExchangeOnly &&
+    !(tab === "virtual_card" && svc === "creation") &&
+    !isCryptoFeesUsd;
 
   return (
     <div className="mx-auto max-w-[1600px] space-y-6 md:space-y-8">
@@ -353,6 +375,23 @@ const Rates: React.FC = () => {
             </label>
           ) : null}
 
+          {isVcFund ? (
+            <label className="flex flex-col gap-1 text-sm md:col-span-2">
+              <span className="font-medium text-gray-700">Fixed processing fee (USD)</span>
+              <input
+                value={feeUsd}
+                onChange={(e) => setFeeUsd(e.target.value)}
+                placeholder="e.g. 1"
+                className="rounded-xl border border-gray-200 px-3 py-2.5 text-gray-900"
+              />
+              <span className="text-xs text-gray-500">
+                Flat fee in US dollars. When the user pays from their Naira wallet, we charge: this amount × the
+                exchange rate above (e.g. $1 × 1,398 = ₦1,398). Leave empty only if you rely on legacy NGN-only
+                rows.
+              </span>
+            </label>
+          ) : null}
+
           {isCryptoFeesUsd ? (
             <>
               <label className="flex flex-col gap-1 text-sm">
@@ -381,31 +420,31 @@ const Rates: React.FC = () => {
             </>
           ) : null}
 
-          {!(tab === "virtual_card" && svc === "creation") && !isCryptoFeesUsd && !isCryptoExchangeOnly ? (
-            <>
-              <label className="flex flex-col gap-1 text-sm">
-                <span className="font-medium text-gray-700">Fixed fee (NGN)</span>
-                <input
-                  value={fixedFee}
-                  onChange={(e) => setFixedFee(e.target.value)}
-                  placeholder="Fixed fee (in Naira)"
-                  className="rounded-xl border border-gray-200 px-3 py-2.5 text-gray-900"
-                />
-              </label>
+          {showLegacyFixedNgn ? (
+            <label className="flex flex-col gap-1 text-sm">
+              <span className="font-medium text-gray-700">Fixed fee (NGN)</span>
+              <input
+                value={fixedFee}
+                onChange={(e) => setFixedFee(e.target.value)}
+                placeholder="Fixed fee (in Naira)"
+                className="rounded-xl border border-gray-200 px-3 py-2.5 text-gray-900"
+              />
+            </label>
+          ) : null}
 
-              <label className="flex flex-col gap-1 text-sm">
-                <span className="font-medium text-gray-700">Percentage fee</span>
-                <div className="relative">
-                  <input
-                    value={pctFee}
-                    onChange={(e) => setPctFee(e.target.value)}
-                    placeholder="0"
-                    className="w-full rounded-xl border border-gray-200 py-2.5 pl-3 pr-9 text-gray-900"
-                  />
-                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">%</span>
-                </div>
-              </label>
-            </>
+          {showStandalonePctFee ? (
+            <label className="flex flex-col gap-1 text-sm">
+              <span className="font-medium text-gray-700">Percentage fee</span>
+              <div className="relative">
+                <input
+                  value={pctFee}
+                  onChange={(e) => setPctFee(e.target.value)}
+                  placeholder="0"
+                  className="w-full rounded-xl border border-gray-200 py-2.5 pl-3 pr-9 text-gray-900"
+                />
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">%</span>
+              </div>
+            </label>
           ) : null}
 
           {tab === "fiat" && svc === "bill_payment" ? (
@@ -504,7 +543,7 @@ const Rates: React.FC = () => {
                     <th className="px-4 py-3 font-semibold text-gray-700">Service</th>
                     <th className="px-4 py-3 font-semibold text-gray-700">Exchange rate</th>
                     <th className="px-4 py-3 font-semibold text-gray-700">Fee (USD)</th>
-                    <th className="px-4 py-3 font-semibold text-gray-700">Fixed (NGN)</th>
+                    <th className="px-4 py-3 font-semibold text-gray-700">Fixed (USD)</th>
                     <th className="px-4 py-3 font-semibold text-gray-700">Commission</th>
                   </>
                 )}
@@ -585,9 +624,33 @@ const Rates: React.FC = () => {
                             : "—"}
                         </td>
                         <td className="px-4 py-3 text-gray-800">
-                          {r.fee_usd != null && r.fee_usd !== "" ? `$${Number(r.fee_usd).toLocaleString("en-US")}` : "—"}
+                          {r.service_key === "creation" && r.fee_usd != null && r.fee_usd !== ""
+                            ? `$${Number(r.fee_usd).toLocaleString("en-US")}`
+                            : "—"}
                         </td>
-                        <td className="px-4 py-3 text-gray-800">₦{Number(r.fixed_fee_ngn).toLocaleString("en-US")}</td>
+                        <td className="px-4 py-3 text-gray-800">
+                          {r.fee_usd != null && r.fee_usd !== "" && r.service_key !== "creation" ? (
+                            <span>
+                              <span className="font-medium">
+                                ${Number(r.fee_usd).toLocaleString("en-US")}
+                              </span>
+                              {r.service_key === "fund" &&
+                              r.exchange_rate_ngn_per_usd != null &&
+                              r.exchange_rate_ngn_per_usd !== "" ? (
+                                <span className="mt-0.5 block text-xs text-gray-600">
+                                  ≈ ₦
+                                  {Number(
+                                    Number(r.fee_usd) * Number(r.exchange_rate_ngn_per_usd),
+                                  ).toLocaleString("en-US", { maximumFractionDigits: 0 })}
+                                </span>
+                              ) : null}
+                            </span>
+                          ) : Number(r.fixed_fee_ngn) > 0 && (r.service_key === "fund" || r.service_key === "withdraw") ? (
+                            `₦${Number(r.fixed_fee_ngn).toLocaleString("en-US")} (legacy NGN)`
+                          ) : (
+                            "—"
+                          )}
+                        </td>
                         <td className="px-4 py-3 text-gray-800">
                           {r.percentage_fee != null ? `${r.percentage_fee}%` : "—"}
                         </td>

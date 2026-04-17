@@ -13,7 +13,7 @@ export interface PlatformRateRow {
   fixed_fee_ngn: string;
   percentage_fee: string | null;
   min_fee_ngn: string | null;
-  /** Virtual card **creation** only — USD fee before conversion to NGN. */
+  /** Virtual card: **creation** = card fee (USD); **fund** = flat processing fee (USD) × rate for Naira loads. */
   fee_usd: string | null;
   is_active: boolean;
   updated_at: string | null;
