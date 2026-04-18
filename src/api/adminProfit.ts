@@ -44,6 +44,9 @@ export interface ProfitTransactionRow {
 export interface ProfitSummary {
   transaction_count: number;
   sum_transaction_amount: string;
+  /** Sum of `transactions.fee` (fees charged on each tx — reflects Rates at execution). */
+  sum_fee_collected?: string;
+  sum_principal_amount?: string;
   sum_fixed_profit: string;
   sum_percentage_profit: string;
   sum_total_profit: string;

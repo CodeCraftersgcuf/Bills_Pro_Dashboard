@@ -1,6 +1,8 @@
 import React, { useDeferredValue, useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  Banknote,
   ChevronDown,
   Coins,
   LineChart,
@@ -106,9 +108,14 @@ function ProfitSettingsPanel({ disabled }: { disabled: boolean }) {
         <div className="flex items-center gap-2 text-white">
           <Settings2 className="h-6 w-6 shrink-0" />
           <div>
-            <h2 className="text-lg font-semibold md:text-xl">Profit rules by service</h2>
+            <h2 className="text-lg font-semibold md:text-xl">Profit margin (your share)</h2>
             <p className="text-xs text-white/85">
-              Fixed fee plus percentage of the chosen basis. Totals apply to matching completed transactions below.
+              Customer-facing fees are set under{" "}
+              <Link to="/rates" className="font-semibold text-white underline underline-offset-2 hover:text-white/95">
+                Rates
+              </Link>
+              . Here you only define <strong>profit</strong>: fixed profit + profit % on principal, fee, or total charged—per transaction
+              type. This is not a second copy of Rates.
             </p>
           </div>
         </div>
@@ -124,9 +131,9 @@ function ProfitSettingsPanel({ disabled }: { disabled: boolean }) {
             <thead>
               <tr style={{ backgroundColor: COL_HEADER }}>
                 <th className="px-4 py-3 font-semibold text-gray-700">Service</th>
-                <th className="px-4 py-3 font-semibold text-gray-700">Fixed fee</th>
-                <th className="px-4 py-3 font-semibold text-gray-700">%</th>
-                <th className="px-4 py-3 font-semibold text-gray-700">% applies to</th>
+                <th className="px-4 py-3 font-semibold text-gray-700">Fixed profit</th>
+                <th className="px-4 py-3 font-semibold text-gray-700">Profit %</th>
+                <th className="px-4 py-3 font-semibold text-gray-700">Profit % applies to</th>
                 <th className="px-4 py-3 font-semibold text-gray-700">Active</th>
                 <th className="px-4 py-3 font-semibold text-gray-700">Action</th>
               </tr>
@@ -194,7 +201,7 @@ function ProfitSettingsPanel({ disabled }: { disabled: boolean }) {
                       >
                         <option value="total_amount">Total charged</option>
                         <option value="amount">Principal amount</option>
-                        <option value="fee">Fee only</option>
+                        <option value="fee">Fee only (from tx / Rates)</option>
                       </select>
                     </td>
                     <td className="px-4 py-3">
@@ -409,6 +416,8 @@ const ProfitCenter: React.FC = () => {
         "description",
         "type",
         "currency",
+        "principal_amount",
+        "fee",
         "total_amount",
         "fixed_profit",
         "percentage_profit",
@@ -420,6 +429,8 @@ const ProfitCenter: React.FC = () => {
         (r.description ?? "").replace(/\r?\n/g, " "),
         r.type ?? "",
         r.currency ?? "",
+        r.amount,
+        r.fee,
         r.total_amount,
         r.profit.fixed_profit,
         r.profit.percentage_profit,
@@ -434,14 +445,19 @@ const ProfitCenter: React.FC = () => {
       <div>
         <h1 className="text-2xl font-bold text-gray-900 md:text-3xl">Profit center</h1>
         <p className="mt-1 text-sm text-gray-600">
-          <strong className="text-gray-800">Where to set profit:</strong> use the{" "}
-          <strong>Profit rules by service</strong> table below (green header). Enter fixed fee and percentage per row, then{" "}
-          <strong>Save</strong>. Only <strong>admin</strong> accounts can access this page (sidebar: <strong>Profit center</strong>, URL{" "}
-          <code className="rounded bg-gray-100 px-1 py-0.5 text-xs">/profit</code>). App users do not set profit here.
+          <strong className="text-gray-800">Fees customers pay</strong> are configured in{" "}
+          <Link to="/rates" className="font-semibold text-[#1B800F] underline underline-offset-2 hover:opacity-90">
+            Rates
+          </Link>{" "}
+          (fiat, crypto, virtual card, etc.). Those fees flow into each transaction’s <strong>Fee</strong> and <strong>Total</strong> fields
+          when users are charged—you do <strong>not</strong> re-enter them here.
         </p>
         <p className="mt-2 text-sm text-gray-600">
-          Rules apply <strong>immediately</strong> to all transactions that match the filters below—profit is calculated from each row’s
-          amounts using your current settings (no separate “sync” step). Numeric totals may mix currencies when no currency filter is applied.
+          <strong className="text-gray-800">Profit margin</strong> is configured only in the green <strong>Profit margin</strong> table
+          below: <strong>Fixed profit</strong> and <strong>Profit %</strong> (and which amount the % applies to). The transaction table
+          shows <strong>Principal</strong>, <strong>Fee</strong> (from the ledger / Rates), and <strong>Total charged</strong>, then your
+          computed profit. Admin-only; sidebar <strong>Profit center</strong> or{" "}
+          <code className="rounded bg-gray-100 px-1 py-0.5 text-xs">/profit</code>.
         </p>
       </div>
 
@@ -453,18 +469,24 @@ const ProfitCenter: React.FC = () => {
 
       <ProfitSettingsPanel disabled={!hasToken} />
 
-      <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <StatCard
           icon={PiggyBank}
           label="Total profit"
           value={summary ? fmtNum(summary.sum_total_profit) : "—"}
-          hint="Fixed + % components (filtered)"
+          hint="Fixed + % profit (filtered)"
+        />
+        <StatCard
+          icon={Banknote}
+          label="Fees collected"
+          value={summary ? fmtNum(summary.sum_fee_collected) : "—"}
+          hint="Sum of fee field (from charges)"
         />
         <StatCard
           icon={Coins}
-          label="Volume"
+          label="Total charged"
           value={summary ? fmtNum(summary.sum_transaction_amount) : "—"}
-          hint="Sum of total charged"
+          hint="Sum of total per transaction"
         />
         <StatCard
           icon={LineChart}
@@ -480,7 +502,16 @@ const ProfitCenter: React.FC = () => {
           className="flex flex-col gap-4 px-5 py-4 md:flex-row md:flex-wrap md:items-center md:justify-between md:px-7 md:py-5"
           style={{ backgroundColor: HEADER_GREEN }}
         >
-          <h2 className="text-lg font-semibold text-white md:text-xl">Transactions &amp; profit</h2>
+          <div>
+            <h2 className="text-lg font-semibold text-white md:text-xl">Transactions &amp; profit</h2>
+            <p className="mt-1 max-w-3xl text-xs text-white/90">
+              <strong>Fee</strong> and <strong>Total</strong> come from each transaction record (pricing applied from{" "}
+              <Link to="/rates" className="font-semibold text-white underline underline-offset-2 hover:text-white/95">
+                Rates
+              </Link>
+              ). Profit columns use the margin rules above.
+            </p>
+          </div>
           <div className="flex flex-wrap items-center gap-2">
             <select
               value={typeFilter}
@@ -613,12 +644,14 @@ const ProfitCenter: React.FC = () => {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1100px] border-collapse text-left text-sm">
+          <table className="w-full min-w-[1280px] border-collapse text-left text-sm">
             <thead>
               <tr style={{ backgroundColor: COL_HEADER }}>
                 <th className="px-4 py-3 font-semibold text-gray-700">Description</th>
                 <th className="px-4 py-3 font-semibold text-gray-700">Type</th>
-                <th className="px-4 py-3 font-semibold text-gray-700">Amount</th>
+                <th className="px-4 py-3 font-semibold text-gray-700">Principal</th>
+                <th className="px-4 py-3 font-semibold text-gray-700">Fee</th>
+                <th className="px-4 py-3 font-semibold text-gray-700">Total charged</th>
                 <th className="px-4 py-3 font-semibold text-gray-700">Fixed profit</th>
                 <th className="px-4 py-3 font-semibold text-gray-700">% profit</th>
                 <th className="px-4 py-3 font-semibold text-gray-700">Total profit</th>
@@ -628,13 +661,13 @@ const ProfitCenter: React.FC = () => {
             <tbody>
               {hasToken && listQ.isLoading ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-10 text-center text-gray-500">
+                  <td colSpan={9} className="px-4 py-10 text-center text-gray-500">
                     Loading…
                   </td>
                 </tr>
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-10 text-center text-gray-500">
+                  <td colSpan={9} className="px-4 py-10 text-center text-gray-500">
                     <p className="font-medium text-gray-700">No transactions for these filters.</p>
                     <p className="mx-auto mt-2 max-w-lg text-sm">
                       Try <strong>All dates</strong> (date dropdown), <strong>All statuses</strong>, and <strong>All currencies</strong> to
@@ -655,7 +688,9 @@ const ProfitCenter: React.FC = () => {
                       <p className="text-xs text-gray-500">{r.user?.display_name ?? "—"}</p>
                     </td>
                     <td className="px-4 py-3 text-gray-800">{humanizeTransactionSubtype(r)}</td>
-                    <td className="whitespace-nowrap px-4 py-3 text-gray-900">
+                    <td className="whitespace-nowrap px-4 py-3 text-gray-900">{fmtNum(r.amount, r.currency)}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-gray-900">{fmtNum(r.fee, r.currency)}</td>
+                    <td className="whitespace-nowrap px-4 py-3 font-medium text-gray-900">
                       {fmtNum(r.total_amount, r.currency)}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-gray-800">
