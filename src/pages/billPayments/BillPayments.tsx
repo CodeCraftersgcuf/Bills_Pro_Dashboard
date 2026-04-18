@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, Copy, Search, Users, X } from "lucide-react";
 import {
@@ -17,6 +17,7 @@ import {
   type DateRangePreset,
 } from "../../utils/dateRange";
 import { humanizeApiLabel } from "../../utils/humanizeApiLabel";
+import { downloadCsv } from "../../utils/csvDownload";
 
 const HEADER_GREEN = "#21D721";
 const HEADER_SEARCH = "#189016";
@@ -226,6 +227,9 @@ const BillPayments: React.FC = () => {
   const [datePreset, setDatePreset] = useState<DateRangePreset>("all");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
+  const [selectedBills, setSelectedBills] = useState<Map<number, BillPaymentListRow>>(() => new Map());
+  const [bulkBill, setBulkBill] = useState<"bulk" | "export">("bulk");
+  const selectAllBillsRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (datePreset !== "custom") return;
@@ -264,6 +268,83 @@ const BillPayments: React.FC = () => {
 
   const rows = listQ.data?.data ?? [];
   const totalPages = listQ.data?.last_page ?? 1;
+
+  useEffect(() => {
+    setSelectedBills(new Map());
+  }, [page, search, status, billType, from, to]);
+
+  const allBillsSelected = rows.length > 0 && rows.every((r) => selectedBills.has(r.id));
+  const someBillsSelected = rows.some((r) => selectedBills.has(r.id));
+
+  useEffect(() => {
+    const el = selectAllBillsRef.current;
+    if (!el) return;
+    el.indeterminate = someBillsSelected && !allBillsSelected;
+  }, [allBillsSelected, someBillsSelected, rows]);
+
+  const toggleBillRow = (r: BillPaymentListRow) => {
+    setSelectedBills((prev) => {
+      const next = new Map(prev);
+      if (next.has(r.id)) next.delete(r.id);
+      else next.set(r.id, r);
+      return next;
+    });
+  };
+
+  const toggleAllBillsOnPage = () => {
+    const all = rows.length > 0 && rows.every((r) => selectedBills.has(r.id));
+    setSelectedBills((prev) => {
+      const next = new Map(prev);
+      if (all) {
+        rows.forEach((r) => next.delete(r.id));
+      } else {
+        rows.forEach((r) => next.set(r.id, r));
+      }
+      return next;
+    });
+  };
+
+  const onBulkBillChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const v = e.target.value as "bulk" | "export";
+    setBulkBill("bulk");
+    if (v !== "export") return;
+    const list = Array.from(selectedBills.values());
+    if (list.length === 0) {
+      window.alert("Select at least one row to export.");
+      return;
+    }
+    downloadCsv(
+      "bill-payments",
+      [
+        "id",
+        "transaction_id",
+        "reference",
+        "user_name",
+        "user_email",
+        "amount",
+        "total_amount",
+        "currency",
+        "status_label",
+        "service_label",
+        "bill_category",
+        "created_at",
+      ],
+      list.map((r) => [
+        r.id,
+        r.transaction_id,
+        r.reference,
+        r.user?.display_name ?? "",
+        r.user?.email ?? "",
+        r.amount,
+        r.total_amount,
+        r.currency,
+        r.status_label,
+        r.service_label,
+        r.bill_category ?? "",
+        r.created_at ?? "",
+      ])
+    );
+  };
 
   const naira = (s: string) => {
     const n = Number(s);
@@ -403,13 +484,19 @@ const BillPayments: React.FC = () => {
           <option value="electricity">Electricity</option>
           <option value="betting">Betting</option>
         </select>
-        <button
-          type="button"
-          className="rounded-full px-5 py-2 text-sm font-semibold text-gray-800"
-          style={{ backgroundColor: "#E8E8E8" }}
-        >
-          Bulk Action
-        </button>
+        <div className="relative">
+          <select
+            value={bulkBill}
+            onChange={onBulkBillChange}
+            className="cursor-pointer appearance-none rounded-full border-0 py-2 pl-4 pr-9 text-sm font-semibold text-gray-800"
+            style={{ backgroundColor: "#E8E8E8" }}
+            aria-label="Bulk action"
+          >
+            <option value="bulk">Bulk Action</option>
+            <option value="export">Export</option>
+          </select>
+          <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-600" />
+        </div>
       </div>
 
       <section className="overflow-hidden rounded-3xl bg-white shadow-md">
@@ -438,7 +525,14 @@ const BillPayments: React.FC = () => {
             <thead>
               <tr style={{ backgroundColor: COL_HEADER }}>
                 <th className="w-10 px-3 py-3">
-                  <input type="checkbox" className="accent-[#21D721]" aria-label="Select all" />
+                  <input
+                    ref={selectAllBillsRef}
+                    type="checkbox"
+                    checked={allBillsSelected}
+                    onChange={toggleAllBillsOnPage}
+                    className="accent-[#21D721]"
+                    aria-label="Select all on this page"
+                  />
                 </th>
                 <th className="px-4 py-3 font-semibold text-gray-700">Name</th>
                 <th className="px-4 py-3 font-semibold text-gray-700">Transaction id</th>
@@ -469,7 +563,13 @@ const BillPayments: React.FC = () => {
                   return (
                     <tr key={r.id} style={{ backgroundColor: i % 2 === 0 ? ROW_A : ROW_B }} className="border-t border-gray-100">
                       <td className="px-3 py-3">
-                        <input type="checkbox" className="accent-[#21D721]" aria-label={`Select ${r.id}`} />
+                        <input
+                          type="checkbox"
+                          checked={selectedBills.has(r.id)}
+                          onChange={() => toggleBillRow(r)}
+                          className="accent-[#21D721]"
+                          aria-label={`Select ${r.id}`}
+                        />
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">

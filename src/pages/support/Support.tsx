@@ -232,6 +232,8 @@ const Support: React.FC = () => {
     queryKey: ["admin", "support-summary"],
     queryFn: fetchSupportSummary,
     enabled: hasToken,
+    refetchInterval: hasToken ? 30_000 : false,
+    refetchOnWindowFocus: true,
   });
 
   const listQ = useQuery({
@@ -247,6 +249,8 @@ const Support: React.FC = () => {
         to,
       }),
     enabled: hasToken,
+    refetchInterval: hasToken ? 30_000 : false,
+    refetchOnWindowFocus: true,
   });
 
   const rows = listQ.data?.data ?? [];

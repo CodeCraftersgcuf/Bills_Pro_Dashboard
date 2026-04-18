@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Banknote, ChevronDown, Coins, Search, Users, X } from "lucide-react";
 import type { User } from "../data/users";
@@ -7,6 +7,7 @@ import type { ProfileTxRow } from "../data/userTransactions";
 import StatCard from "./StatCard";
 import { fetchAdminTransactions, type AdminTransactionRow } from "../api/adminTransactions";
 import { humanizeApiLabelOrDash, humanizeTransactionSubtype } from "../utils/humanizeApiLabel";
+import { downloadCsv } from "../utils/csvDownload";
 
 const GREEN = "#1B800F";
 const FILTER_TRACK_BG = "#E8E8E8";
@@ -117,6 +118,9 @@ const UserProfileTransactionsTab: React.FC<UserProfileTransactionsTabProps> = ({
     variant: "deposit" | "withdraw" | "bill";
   } | null>(null);
   const [detailTx, setDetailTx] = useState<ProfileTxRow | null>(null);
+  const [selectedProfTx, setSelectedProfTx] = useState<Map<string, ProfileTxRow>>(() => new Map());
+  const [bulkProf, setBulkProf] = useState<"bulk" | "export">("bulk");
+  const selectAllProfRef = useRef<HTMLInputElement>(null);
 
   const txQ = useQuery({
     queryKey: ["admin", "user-transactions", user.id],
@@ -180,6 +184,58 @@ const UserProfileTransactionsTab: React.FC<UserProfileTransactionsTabProps> = ({
 
     return rows;
   }, [baseRows, currencyTab, typePill, cryptoTxType, txStatus, search]);
+
+  useEffect(() => {
+    setSelectedProfTx(new Map());
+  }, [currencyTab, typePill, cryptoTxType, txStatus, search, user.id]);
+
+  const allProfSelected =
+    filteredRows.length > 0 && filteredRows.every((r) => selectedProfTx.has(r.id));
+  const someProfSelected = filteredRows.some((r) => selectedProfTx.has(r.id));
+
+  useEffect(() => {
+    const el = selectAllProfRef.current;
+    if (!el) return;
+    el.indeterminate = someProfSelected && !allProfSelected;
+  }, [allProfSelected, someProfSelected, filteredRows]);
+
+  const toggleProfTx = (row: ProfileTxRow) => {
+    setSelectedProfTx((prev) => {
+      const next = new Map(prev);
+      if (next.has(row.id)) next.delete(row.id);
+      else next.set(row.id, row);
+      return next;
+    });
+  };
+
+  const toggleAllProfOnPage = () => {
+    const all = filteredRows.length > 0 && filteredRows.every((r) => selectedProfTx.has(r.id));
+    setSelectedProfTx((prev) => {
+      const next = new Map(prev);
+      if (all) {
+        filteredRows.forEach((r) => next.delete(r.id));
+      } else {
+        filteredRows.forEach((r) => next.set(r.id, r));
+      }
+      return next;
+    });
+  };
+
+  const onBulkProfChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const v = e.target.value as "bulk" | "export";
+    setBulkProf("bulk");
+    if (v !== "export") return;
+    const list = Array.from(selectedProfTx.values());
+    if (list.length === 0) {
+      window.alert("Select at least one transaction to export.");
+      return;
+    }
+    downloadCsv(
+      `user-${user.id}-transactions`,
+      ["transaction_id", "amount", "status", "type", "sub_type", "date"],
+      list.map((r) => [r.id, r.amount, r.status, r.type, r.subType, r.date])
+    );
+  };
 
   const tabBtn = (active: boolean) =>
     `relative pb-3 text-sm font-semibold transition-colors ${
@@ -350,10 +406,15 @@ const UserProfileTransactionsTab: React.FC<UserProfileTransactionsTabProps> = ({
           </div>
 
           <div className="relative">
-            <select className={selectClass} style={{ backgroundColor: FILTER_DROPDOWN_BG }} defaultValue="">
-              <option value="">Bulk Action</option>
+            <select
+              className={selectClass}
+              style={{ backgroundColor: FILTER_DROPDOWN_BG }}
+              value={bulkProf}
+              onChange={onBulkProfChange}
+              aria-label="Bulk action"
+            >
+              <option value="bulk">Bulk Action</option>
               <option value="export">Export</option>
-              <option value="archive">Archive</option>
             </select>
             <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-600 md:right-3.5" />
           </div>
@@ -389,9 +450,12 @@ const UserProfileTransactionsTab: React.FC<UserProfileTransactionsTabProps> = ({
                 <th className="w-12 px-5 py-4 align-middle font-semibold text-gray-600">
                   <span className="sr-only">Select</span>
                   <input
+                    ref={selectAllProfRef}
                     type="checkbox"
+                    checked={allProfSelected}
+                    onChange={toggleAllProfOnPage}
                     className="h-4 w-4 rounded border-2 border-gray-400 bg-white accent-[#21D721]"
-                    aria-label="Select all"
+                    aria-label="Select all on this page"
                   />
                 </th>
                 <th className="px-5 py-4 font-semibold text-gray-700">Transaction id</th>
@@ -432,6 +496,8 @@ const UserProfileTransactionsTab: React.FC<UserProfileTransactionsTabProps> = ({
                     <td className="px-5 py-4 align-middle">
                       <input
                         type="checkbox"
+                        checked={selectedProfTx.has(row.id)}
+                        onChange={() => toggleProfTx(row)}
                         className="h-4 w-4 rounded border-2 border-gray-400 bg-white accent-[#21D721]"
                         aria-label={`Select ${row.id}`}
                       />

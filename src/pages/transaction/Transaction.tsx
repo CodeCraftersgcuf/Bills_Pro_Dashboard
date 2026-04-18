@@ -1,4 +1,4 @@
-import React, { useDeferredValue, useEffect, useMemo, useState } from "react";
+import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import {
@@ -20,6 +20,7 @@ import {
   type DateRangePreset,
 } from "../../utils/dateRange";
 import { humanizeTransactionSubtype } from "../../utils/humanizeApiLabel";
+import { downloadCsv } from "../../utils/csvDownload";
 
 const GREEN = "#1B800F";
 /** Segmented filter track + dropdown fills */
@@ -352,6 +353,9 @@ const Transaction: React.FC = () => {
   const [datePreset, setDatePreset] = useState<DateRangePreset>("all");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
+  const [selectedByTxId, setSelectedByTxId] = useState<Map<string, TxRow>>(() => new Map());
+  const [bulkTx, setBulkTx] = useState<"bulk" | "export">("bulk");
+  const selectAllTxRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (datePreset !== "custom") return;
@@ -445,6 +449,78 @@ const Transaction: React.FC = () => {
     }
     return mapped;
   }, [txQ.data?.data, currencyTab]);
+
+  useEffect(() => {
+    setSelectedByTxId(new Map());
+  }, [
+    page,
+    currencyTab,
+    typePill,
+    statusFilter,
+    cryptoSubtype,
+    searchDebounced,
+    datePreset,
+    customFrom,
+    customTo,
+    userIdNum,
+  ]);
+
+  const allRowsSelected = rows.length > 0 && rows.every((r) => selectedByTxId.has(r.id));
+  const someRowsSelected = rows.some((r) => selectedByTxId.has(r.id));
+
+  useEffect(() => {
+    const el = selectAllTxRef.current;
+    if (!el) return;
+    el.indeterminate = someRowsSelected && !allRowsSelected;
+  }, [allRowsSelected, someRowsSelected, rows]);
+
+  const toggleTxRow = (row: TxRow) => {
+    setSelectedByTxId((prev) => {
+      const next = new Map(prev);
+      if (next.has(row.id)) next.delete(row.id);
+      else next.set(row.id, row);
+      return next;
+    });
+  };
+
+  const toggleAllTxOnPage = () => {
+    const all = rows.length > 0 && rows.every((r) => selectedByTxId.has(r.id));
+    setSelectedByTxId((prev) => {
+      const next = new Map(prev);
+      if (all) {
+        rows.forEach((r) => next.delete(r.id));
+      } else {
+        rows.forEach((r) => next.set(r.id, r));
+      }
+      return next;
+    });
+  };
+
+  const onBulkTxChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const v = e.target.value as "bulk" | "export";
+    setBulkTx("bulk");
+    if (v !== "export") return;
+    const list = Array.from(selectedByTxId.values());
+    if (list.length === 0) {
+      window.alert("Select at least one transaction to export.");
+      return;
+    }
+    downloadCsv(
+      "admin-transactions",
+      ["name", "transaction_id", "amount", "status", "type", "sub_type", "date", "reference", "description"],
+      list.map((r) => [
+        r.name,
+        r.id,
+        r.amount,
+        r.status,
+        r.type,
+        r.subType,
+        r.date,
+        r.detail.reference,
+        r.detail.description,
+      ])
+    );
+  };
 
   const tabBtn = (active: boolean) =>
     `relative pb-3 text-sm font-semibold transition-colors ${
@@ -678,14 +754,13 @@ const Transaction: React.FC = () => {
           <div className="relative">
             <select
               className={selectClass}
-              defaultValue=""
+              value={bulkTx}
+              onChange={onBulkTxChange}
               aria-label="Bulk action"
               style={{ backgroundColor: FILTER_DROPDOWN_BG }}
             >
-              <option value="">Bulk Action</option>
+              <option value="bulk">Bulk Action</option>
               <option value="export">Export</option>
-              <option value="delete">Delete</option>
-              <option value="archive">Archive</option>
             </select>
             <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-600 md:right-3.5" />
           </div>
@@ -725,9 +800,12 @@ const Transaction: React.FC = () => {
                 <th className="w-12 px-5 py-4 align-middle font-semibold text-gray-600">
                   <span className="sr-only">Select</span>
                   <input
+                    ref={selectAllTxRef}
                     type="checkbox"
+                    checked={allRowsSelected}
+                    onChange={toggleAllTxOnPage}
                     className="h-4 w-4 rounded border-2 border-gray-400 bg-white accent-[#21D721] focus:ring-2 focus:ring-[#21D721]/40"
-                    aria-label="Select all"
+                    aria-label="Select all on this page"
                   />
                 </th>
                 <th className="px-5 py-4 align-middle font-semibold text-gray-700">Name</th>
@@ -772,6 +850,8 @@ const Transaction: React.FC = () => {
                       <td className="px-5 py-5 align-middle">
                         <input
                           type="checkbox"
+                          checked={selectedByTxId.has(row.id)}
+                          onChange={() => toggleTxRow(row)}
                           className="h-4 w-4 rounded border-2 border-gray-400 bg-white accent-[#21D721] focus:ring-2 focus:ring-[#21D721]/40"
                           aria-label={`Select ${row.name}`}
                         />

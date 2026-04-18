@@ -1,7 +1,7 @@
-import React, { useDeferredValue, useEffect, useState } from "react";
+import React, { useDeferredValue, useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { Search, MoreVertical } from "lucide-react";
+import { Search } from "lucide-react";
 import { fetchAdminUsers, type AdminUserRow } from "../api/adminUsers";
 import { getAdminToken } from "../api/authToken";
 import { avatarUrlForName } from "../utils/avatarUrl";
@@ -44,6 +44,11 @@ export type LatestUsersTableProps = {
   datePreset?: DateRangePreset;
   title?: string;
   perPage?: number;
+  /** When true, checkboxes select rows and `onSelectionChange` reports selected users (persists across pages). */
+  enableSelection?: boolean;
+  onSelectionChange?: (users: AdminUserRow[]) => void;
+  /** Increment (e.g. after bulk delete) to clear the selection in the table. */
+  selectionResetKey?: number | string;
 };
 
 const LatestUsersTable: React.FC<LatestUsersTableProps> = ({
@@ -52,6 +57,9 @@ const LatestUsersTable: React.FC<LatestUsersTableProps> = ({
   datePreset = "all",
   title = "Latest Users",
   perPage = 12,
+  enableSelection = false,
+  onSelectionChange,
+  selectionResetKey = 0,
 }) => {
   const navigate = useNavigate();
   const hasToken = Boolean(getAdminToken());
@@ -60,9 +68,17 @@ const LatestUsersTable: React.FC<LatestUsersTableProps> = ({
   const [page, setPage] = useState(1);
   const { from, to } = presetToFromTo(datePreset);
 
+  /** Selected users keyed by id so selection + export work across pages. */
+  const [selectedById, setSelectedById] = useState<Map<number, AdminUserRow>>(() => new Map());
+  const selectAllRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     setPage(1);
   }, [accountStatus, kycFilter, datePreset]);
+
+  useEffect(() => {
+    setSelectedById(new Map());
+  }, [accountStatus, kycFilter, datePreset, searchDebounced, selectionResetKey]);
 
   const q = useQuery({
     queryKey: ["admin", "users-latest", searchDebounced, page, perPage, accountStatus, kycFilter, from, to],
@@ -81,6 +97,44 @@ const LatestUsersTable: React.FC<LatestUsersTableProps> = ({
   });
 
   const rows = q.data?.data ?? [];
+
+  useEffect(() => {
+    if (!enableSelection || !onSelectionChange) return;
+    onSelectionChange(Array.from(selectedById.values()));
+  }, [enableSelection, onSelectionChange, selectedById]);
+
+  const toggleOne = (u: AdminUserRow) => {
+    setSelectedById((prev) => {
+      const next = new Map(prev);
+      if (next.has(u.id)) next.delete(u.id);
+      else next.set(u.id, u);
+      return next;
+    });
+  };
+
+  const toggleAllOnPage = () => {
+    const allOnPageSelected = rows.length > 0 && rows.every((r) => selectedById.has(r.id));
+    setSelectedById((prev) => {
+      const next = new Map(prev);
+      if (allOnPageSelected) {
+        rows.forEach((r) => next.delete(r.id));
+      } else {
+        rows.forEach((r) => next.set(r.id, r));
+      }
+      return next;
+    });
+  };
+
+  const allOnPageSelected = rows.length > 0 && rows.every((r) => selectedById.has(r.id));
+  const someOnPageSelected = rows.some((r) => selectedById.has(r.id));
+
+  useEffect(() => {
+    const el = selectAllRef.current;
+    if (!el || !enableSelection) return;
+    el.indeterminate = someOnPageSelected && !allOnPageSelected;
+  }, [enableSelection, allOnPageSelected, someOnPageSelected, rows]);
+
+  const colCount = enableSelection ? 8 : 7;
 
   return (
     <section className="overflow-hidden rounded-3xl bg-white shadow-md">
@@ -116,14 +170,19 @@ const LatestUsersTable: React.FC<LatestUsersTableProps> = ({
         <table className="w-full min-w-[920px] border-collapse text-left text-sm">
           <thead>
             <tr style={{ backgroundColor: LATEST_COL_HEADER_BG }}>
-              <th className="w-12 px-5 py-4 align-middle font-semibold text-gray-600">
-                <span className="sr-only">Select</span>
-                <input
-                  type="checkbox"
-                  className="h-4 w-4 rounded-none border-2 border-gray-400 bg-white accent-[#21D721] focus:ring-2 focus:ring-[#21D721]/40"
-                  aria-label="Select all"
-                />
-              </th>
+              {enableSelection ? (
+                <th className="w-12 px-5 py-4 align-middle font-semibold text-gray-600">
+                  <span className="sr-only">Select</span>
+                  <input
+                    ref={selectAllRef}
+                    type="checkbox"
+                    checked={allOnPageSelected}
+                    onChange={toggleAllOnPage}
+                    className="h-4 w-4 rounded-none border-2 border-gray-400 bg-white accent-[#21D721] focus:ring-2 focus:ring-[#21D721]/40"
+                    aria-label="Select all on this page"
+                  />
+                </th>
+              ) : null}
               <th className="px-5 py-4 align-middle font-semibold text-gray-700">User Name</th>
               <th className="px-5 py-4 align-middle font-semibold text-gray-700">Email</th>
               <th className="px-5 py-4 align-middle font-semibold text-gray-700">Phone No</th>
@@ -131,19 +190,18 @@ const LatestUsersTable: React.FC<LatestUsersTableProps> = ({
               <th className="px-5 py-4 align-middle font-semibold text-gray-700">KYC</th>
               <th className="px-5 py-4 align-middle font-semibold text-gray-700">Registered</th>
               <th className="px-5 py-4 align-middle font-semibold text-gray-700">Actions</th>
-              <th className="w-16 px-5 py-4 align-middle font-semibold text-gray-700">Other</th>
             </tr>
           </thead>
           <tbody>
             {q.isLoading ? (
               <tr>
-                <td colSpan={9} className="px-5 py-10 text-center text-gray-500">
+                <td colSpan={colCount} className="px-5 py-10 text-center text-gray-500">
                   Loading users…
                 </td>
               </tr>
             ) : rows.length === 0 ? (
               <tr>
-                <td colSpan={9} className="px-5 py-10 text-center text-gray-500">
+                <td colSpan={colCount} className="px-5 py-10 text-center text-gray-500">
                   No users found.
                 </td>
               </tr>
@@ -163,13 +221,17 @@ const LatestUsersTable: React.FC<LatestUsersTableProps> = ({
                     className="align-middle"
                     style={{ backgroundColor: i % 2 === 0 ? LATEST_ROW_A : LATEST_ROW_B }}
                   >
-                    <td className="px-5 py-5 align-middle">
-                      <input
-                        type="checkbox"
-                        className="h-4 w-4 rounded-none border-2 border-gray-400 bg-white accent-[#21D721] focus:ring-2 focus:ring-[#21D721]/40"
-                        aria-label={`Select ${name}`}
-                      />
-                    </td>
+                    {enableSelection ? (
+                      <td className="px-5 py-5 align-middle">
+                        <input
+                          type="checkbox"
+                          checked={selectedById.has(u.id)}
+                          onChange={() => toggleOne(u)}
+                          className="h-4 w-4 rounded-none border-2 border-gray-400 bg-white accent-[#21D721] focus:ring-2 focus:ring-[#21D721]/40"
+                          aria-label={`Select ${name}`}
+                        />
+                      </td>
+                    ) : null}
                     <td className="px-5 py-5 align-middle">
                       <div className="flex items-center gap-3">
                         <img
@@ -212,15 +274,6 @@ const LatestUsersTable: React.FC<LatestUsersTableProps> = ({
                           Transactions
                         </button>
                       </div>
-                    </td>
-                    <td className="px-5 py-5 align-middle">
-                      <button
-                        type="button"
-                        className="flex h-9 w-9 items-center justify-center rounded-full bg-[#D9D9D9] text-gray-600 transition-colors hover:bg-[#CCCCCC]"
-                        aria-label="More options"
-                      >
-                        <MoreVertical className="h-5 w-5" strokeWidth={2} />
-                      </button>
                     </td>
                   </tr>
                 );

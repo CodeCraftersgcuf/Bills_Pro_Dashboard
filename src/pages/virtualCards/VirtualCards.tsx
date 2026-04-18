@@ -1,4 +1,4 @@
-import React, { useDeferredValue, useMemo, useState } from "react";
+import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Users, CreditCard, Banknote, ChevronDown, Search, X } from "lucide-react";
@@ -12,6 +12,7 @@ import {
 import { getAdminToken } from "../../api/authToken";
 import type { User } from "../../data/users";
 import { presetToFromTo, type DateRangePreset } from "../../utils/dateRange";
+import { downloadCsv } from "../../utils/csvDownload";
 
 const GREEN = "#1B800F";
 const TABLE_HEADER_GREEN = "#21D721";
@@ -43,6 +44,32 @@ function userFromOverview(row: VirtualCardUserOverviewRow): User {
 }
 
 type StatusFilter = "all" | "active" | "frozen";
+type BulkVc = "bulk" | "export";
+
+function exportVirtualCardOverviewCsv(rows: VirtualCardUserOverviewRow[]): void {
+  if (rows.length === 0) return;
+  downloadCsv(
+    "virtual-cards-users-overview",
+    [
+      "user_id",
+      "display_name",
+      "email",
+      "phone_number",
+      "card_count",
+      "total_balance_display",
+      "last_tx_display",
+    ],
+    rows.map((r) => [
+      r.user_id,
+      r.display_name,
+      r.email,
+      r.phone_number,
+      r.card_count,
+      r.total_balance_display,
+      r.last_tx_display ?? "",
+    ])
+  );
+}
 
 const VirtualCards: React.FC = () => {
   const hasToken = Boolean(getAdminToken());
@@ -50,9 +77,20 @@ const VirtualCards: React.FC = () => {
   const [datePreset, setDatePreset] = useState<DateRangePreset>("all");
   const [search, setSearch] = useState("");
   const searchDebounced = useDeferredValue(search);
-  const [page] = useState(1);
+  const [page, setPage] = useState(1);
   const [workspaceUser, setWorkspaceUser] = useState<User | null>(null);
+  const [selectedByUserId, setSelectedByUserId] = useState<Map<number, VirtualCardUserOverviewRow>>(() => new Map());
+  const [bulkVc, setBulkVc] = useState<BulkVc>("bulk");
+  const selectAllRef = useRef<HTMLInputElement>(null);
   const { from, to } = presetToFromTo(datePreset);
+
+  useEffect(() => {
+    setSelectedByUserId(new Map());
+  }, [status, datePreset, searchDebounced]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [status, datePreset, searchDebounced]);
 
   const summaryQuery = useQuery({
     queryKey: ["admin", "vc-summary"],
@@ -84,6 +122,53 @@ const VirtualCards: React.FC = () => {
   const tableRows: VirtualCardUserOverviewRow[] = useMemo(() => {
     return overviewQuery.data?.data ?? [];
   }, [overviewQuery.data]);
+
+  const allOnPageSelected =
+    tableRows.length > 0 && tableRows.every((r) => selectedByUserId.has(r.user_id));
+  const someOnPageSelected = tableRows.some((r) => selectedByUserId.has(r.user_id));
+
+  useEffect(() => {
+    const el = selectAllRef.current;
+    if (!el) return;
+    el.indeterminate = someOnPageSelected && !allOnPageSelected;
+  }, [allOnPageSelected, someOnPageSelected, tableRows]);
+
+  const toggleRow = (row: VirtualCardUserOverviewRow) => {
+    setSelectedByUserId((prev) => {
+      const next = new Map(prev);
+      if (next.has(row.user_id)) next.delete(row.user_id);
+      else next.set(row.user_id, row);
+      return next;
+    });
+  };
+
+  const toggleAllOnPage = () => {
+    const all = tableRows.length > 0 && tableRows.every((r) => selectedByUserId.has(r.user_id));
+    setSelectedByUserId((prev) => {
+      const next = new Map(prev);
+      if (all) {
+        tableRows.forEach((r) => next.delete(r.user_id));
+      } else {
+        tableRows.forEach((r) => next.set(r.user_id, r));
+      }
+      return next;
+    });
+  };
+
+  const onBulkVcChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const v = e.target.value as BulkVc;
+    setBulkVc("bulk");
+    if (v !== "export") return;
+    const list = Array.from(selectedByUserId.values());
+    if (list.length === 0) {
+      window.alert("Select at least one row to export.");
+      return;
+    }
+    exportVirtualCardOverviewCsv(list);
+  };
+
+  const pillSelect =
+    "relative w-full cursor-pointer appearance-none rounded-full border border-gray-200 bg-[#E8E8E8] py-2.5 pl-4 pr-9 text-sm font-semibold text-gray-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-[#1B800F]/25 sm:w-auto sm:min-w-[160px]";
 
   return (
     <div className="mx-auto max-w-[1600px] space-y-6 md:space-y-8">
@@ -161,12 +246,22 @@ const VirtualCards: React.FC = () => {
             </button>
           ))}
         </div>
-        <button
-          type="button"
-          className="w-full rounded-xl bg-[#E8E8E8] px-5 py-2.5 text-sm font-semibold text-gray-800 shadow-sm transition-colors hover:bg-[#DDDDDD] sm:w-auto"
-        >
-          Bulk Action
-        </button>
+        <div className="relative w-full sm:w-auto">
+          <select
+            className={pillSelect}
+            value={bulkVc}
+            onChange={onBulkVcChange}
+            aria-label="Bulk action"
+          >
+            <option value="bulk" className="text-gray-900">
+              Bulk Action
+            </option>
+            <option value="export" className="text-gray-900">
+              Export
+            </option>
+          </select>
+          <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
+        </div>
       </div>
 
       <section className="overflow-hidden rounded-3xl bg-white shadow-md">
@@ -205,9 +300,12 @@ const VirtualCards: React.FC = () => {
                 <th className="w-12 px-5 py-4 align-middle font-semibold text-gray-600">
                   <span className="sr-only">Select</span>
                   <input
+                    ref={selectAllRef}
                     type="checkbox"
+                    checked={allOnPageSelected}
+                    onChange={toggleAllOnPage}
                     className="h-4 w-4 rounded-none border-2 border-gray-400 bg-white accent-[#21D721] focus:ring-2 focus:ring-[#21D721]/40"
-                    aria-label="Select all"
+                    aria-label="Select all on this page"
                   />
                 </th>
                 <th className="px-5 py-4 align-middle font-semibold text-gray-700">Name</th>
@@ -244,6 +342,8 @@ const VirtualCards: React.FC = () => {
                       <td className="px-5 py-5 align-middle">
                         <input
                           type="checkbox"
+                          checked={selectedByUserId.has(row.user_id)}
+                          onChange={() => toggleRow(row)}
                           className="h-4 w-4 rounded-none border-2 border-gray-400 bg-white accent-[#21D721] focus:ring-2 focus:ring-[#21D721]/40"
                           aria-label={`Select ${row.display_name}`}
                         />
@@ -282,6 +382,29 @@ const VirtualCards: React.FC = () => {
             </tbody>
           </table>
         </div>
+        {hasToken && overviewQuery.data && overviewQuery.data.last_page > 1 ? (
+          <div className="flex items-center justify-center gap-3 border-t border-gray-100 px-4 py-3">
+            <button
+              type="button"
+              disabled={page <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              className="rounded-lg px-3 py-1.5 text-sm font-medium text-gray-700 disabled:opacity-40"
+            >
+              Previous
+            </button>
+            <span className="text-sm text-gray-600">
+              Page {page} of {overviewQuery.data.last_page}
+            </span>
+            <button
+              type="button"
+              disabled={page >= overviewQuery.data.last_page}
+              onClick={() => setPage((p) => p + 1)}
+              className="rounded-lg px-3 py-1.5 text-sm font-medium text-gray-700 disabled:opacity-40"
+            >
+              Next
+            </button>
+          </div>
+        ) : null}
       </section>
 
       {workspaceUser ? (

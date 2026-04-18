@@ -1,12 +1,17 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, Search } from "lucide-react";
 import { BalanceTextureCard, CRYPTO_WALLET_BG, NAIRA_WALLET_BG } from "../../components/WalletPanel";
-import { fetchMasterWalletSummary, fetchMasterWalletTransactions } from "../../api/adminMasterWallet";
+import {
+  fetchMasterWalletSummary,
+  fetchMasterWalletTransactions,
+  type MasterWalletTxRow,
+} from "../../api/adminMasterWallet";
 import { fetchMasterWalletsMeta } from "../../api/adminCryptoTreasury";
 import { getAdminToken } from "../../api/authToken";
 import { presetToFromTo, type DateRangePreset } from "../../utils/dateRange";
 import { humanizeApiLabelOrDash } from "../../utils/humanizeApiLabel";
+import { downloadCsv } from "../../utils/csvDownload";
 
 const TABLE_HEADER_GREEN = "#21D721";
 const TABLE_SEARCH_BG = "#189016";
@@ -38,6 +43,9 @@ const MasterWallet: React.FC = () => {
   const [provider, setProvider] = useState("all");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
+  const [selectedMw, setSelectedMw] = useState<Map<number, MasterWalletTxRow>>(() => new Map());
+  const [bulkMw, setBulkMw] = useState<"bulk" | "export">("bulk");
+  const selectAllMwRef = useRef<HTMLInputElement>(null);
   const { from, to } = presetToFromTo(datePreset);
 
   const summaryQ = useQuery({
@@ -86,6 +94,85 @@ const MasterWallet: React.FC = () => {
     provider === "all"
       ? filteredRows
       : filteredRows.filter((r) => r.provider.toLowerCase() === provider.toLowerCase());
+
+  useEffect(() => {
+    setSelectedMw(new Map());
+  }, [page, search, tab, from, to, txStatus, provider]);
+
+  const allMwSelected =
+    providerFiltered.length > 0 && providerFiltered.every((r) => selectedMw.has(r.id));
+  const someMwSelected = providerFiltered.some((r) => selectedMw.has(r.id));
+
+  useEffect(() => {
+    const el = selectAllMwRef.current;
+    if (!el) return;
+    el.indeterminate = someMwSelected && !allMwSelected;
+  }, [allMwSelected, someMwSelected, providerFiltered]);
+
+  const toggleMwRow = (r: MasterWalletTxRow) => {
+    setSelectedMw((prev) => {
+      const next = new Map(prev);
+      if (next.has(r.id)) next.delete(r.id);
+      else next.set(r.id, r);
+      return next;
+    });
+  };
+
+  const toggleAllMwOnPage = () => {
+    const all =
+      providerFiltered.length > 0 && providerFiltered.every((r) => selectedMw.has(r.id));
+    setSelectedMw((prev) => {
+      const next = new Map(prev);
+      if (all) {
+        providerFiltered.forEach((r) => next.delete(r.id));
+      } else {
+        providerFiltered.forEach((r) => next.set(r.id, r));
+      }
+      return next;
+    });
+  };
+
+  const onBulkMwChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const v = e.target.value as "bulk" | "export";
+    setBulkMw("bulk");
+    if (v !== "export") return;
+    const list = Array.from(selectedMw.values());
+    if (list.length === 0) {
+      window.alert("Select at least one row to export.");
+      return;
+    }
+    downloadCsv(
+      "master-wallet-transactions",
+      [
+        "id",
+        "wallet_name",
+        "provider",
+        "transaction_type",
+        "destination",
+        "transaction_id",
+        "tx_hash",
+        "amount",
+        "currency",
+        "blockchain",
+        "status",
+        "created_at",
+      ],
+      list.map((r) => [
+        r.id,
+        r.wallet_name,
+        r.provider,
+        r.transaction_type,
+        r.destination,
+        r.transaction_id,
+        r.tx_hash ?? "",
+        r.amount,
+        r.currency,
+        r.blockchain,
+        r.status,
+        r.created_at ?? "",
+      ])
+    );
+  };
 
   return (
     <div className="mx-auto max-w-[1600px] space-y-6 md:space-y-8">
@@ -204,9 +291,19 @@ const MasterWallet: React.FC = () => {
           <option value="Tatum">Tatum</option>
           <option value="Palmpay">Palmpay</option>
         </select>
-        <button type="button" className="ml-auto rounded-full px-5 py-2 text-sm font-semibold text-gray-800" style={{ backgroundColor: "#E8E8E8" }}>
-          Bulk Action
-        </button>
+        <div className="relative ml-auto">
+          <select
+            value={bulkMw}
+            onChange={onBulkMwChange}
+            className="cursor-pointer appearance-none rounded-full border-0 py-2 pl-4 pr-9 text-sm font-semibold text-gray-800"
+            style={{ backgroundColor: "#E8E8E8" }}
+            aria-label="Bulk action"
+          >
+            <option value="bulk">Bulk Action</option>
+            <option value="export">Export</option>
+          </select>
+          <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
+        </div>
       </div>
 
       <section className="overflow-hidden rounded-3xl bg-white shadow-md">
@@ -235,7 +332,14 @@ const MasterWallet: React.FC = () => {
             <thead>
               <tr style={{ backgroundColor: TABLE_COL_HEADER_BG }}>
                 <th className="w-10 px-3 py-3">
-                  <input type="checkbox" className="accent-[#21D721]" aria-label="Select all" />
+                  <input
+                    ref={selectAllMwRef}
+                    type="checkbox"
+                    checked={allMwSelected}
+                    onChange={toggleAllMwOnPage}
+                    className="accent-[#21D721]"
+                    aria-label="Select all on this page"
+                  />
                 </th>
                 <th className="px-4 py-3 font-semibold text-gray-700">Wallet Name</th>
                 <th className="px-4 py-3 font-semibold text-gray-700">Provider</th>
@@ -270,7 +374,13 @@ const MasterWallet: React.FC = () => {
                 providerFiltered.map((r, i) => (
                   <tr key={r.id} style={{ backgroundColor: i % 2 === 0 ? TABLE_ROW_A : TABLE_ROW_B }} className="border-t border-gray-100">
                     <td className="px-3 py-3">
-                      <input type="checkbox" className="accent-[#21D721]" aria-label={`Select ${r.id}`} />
+                      <input
+                        type="checkbox"
+                        checked={selectedMw.has(r.id)}
+                        onChange={() => toggleMwRow(r)}
+                        className="accent-[#21D721]"
+                        aria-label={`Select ${r.id}`}
+                      />
                     </td>
                     <td className="px-4 py-3 font-medium text-gray-900">{r.wallet_name}</td>
                     <td className="px-4 py-3 text-gray-800">{r.provider}</td>

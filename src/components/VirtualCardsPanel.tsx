@@ -1,4 +1,4 @@
-import React, { useDeferredValue, useMemo, useRef, useState } from "react";
+import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, ChevronLeft, ChevronRight, Eye, EyeOff, Search, X } from "lucide-react";
 import type { User } from "../data/users";
@@ -14,6 +14,7 @@ import {
 import VirtualCardDetailsModal from "./VirtualCardDetailsModal";
 import { virtualCardSurfaceStyle } from "../utils/virtualCardSurface";
 import { humanizeApiLabelOrDash } from "../utils/humanizeApiLabel";
+import { downloadCsv } from "../utils/csvDownload";
 
 const GREEN = "#1B800F";
 const FILTER_TRACK_BG = "#E8E8E8";
@@ -91,6 +92,11 @@ function mapApiTxRow(r: AdminVirtualCardTxRow, userId: string): VirtualCardTxRow
   };
 }
 
+function txStableKey(r: VirtualCardTxRow): string {
+  const db = r.databaseId != null ? String(r.databaseId) : "";
+  return `${db || "nodb"}:${r.id}`;
+}
+
 function dateRangeFromPreset(p: DatePreset): { date_from?: string; date_to?: string } {
   if (p === "all") return {};
   const end = new Date();
@@ -120,6 +126,9 @@ const VirtualCardsPanel: React.FC<VirtualCardsPanelProps> = ({ user }) => {
   const [detailRow, setDetailRow] = useState<VirtualCardTxRow | null>(null);
   const [detailCardId, setDetailCardId] = useState<number | null>(null);
   const [fundingNotice, setFundingNotice] = useState<string | null>(null);
+  const [selectedTxByKey, setSelectedTxByKey] = useState<Map<string, VirtualCardTxRow>>(() => new Map());
+  const [bulkPanel, setBulkPanel] = useState<"bulk" | "export">("bulk");
+  const selectAllTxRef = useRef<HTMLInputElement>(null);
 
   const scrollerRef = useRef<HTMLDivElement>(null);
 
@@ -191,6 +200,68 @@ const VirtualCardsPanel: React.FC<VirtualCardsPanelProps> = ({ user }) => {
     if (!txQuery.data?.data) return [];
     return txQuery.data.data.map((r) => mapApiTxRow(r, user.id));
   }, [txQuery.data, user.id]);
+
+  useEffect(() => {
+    setSelectedTxByKey(new Map());
+  }, [user.id, txPill, txStatus, cardTxFilter, searchDeferred, datePreset]);
+
+  const allTxOnPageSelected =
+    filteredTx.length > 0 && filteredTx.every((r) => selectedTxByKey.has(txStableKey(r)));
+  const someTxOnPageSelected = filteredTx.some((r) => selectedTxByKey.has(txStableKey(r)));
+
+  useEffect(() => {
+    const el = selectAllTxRef.current;
+    if (!el) return;
+    el.indeterminate = someTxOnPageSelected && !allTxOnPageSelected;
+  }, [allTxOnPageSelected, someTxOnPageSelected, filteredTx]);
+
+  const toggleTxRow = (row: VirtualCardTxRow) => {
+    const k = txStableKey(row);
+    setSelectedTxByKey((prev) => {
+      const next = new Map(prev);
+      if (next.has(k)) next.delete(k);
+      else next.set(k, row);
+      return next;
+    });
+  };
+
+  const toggleAllTxOnPage = () => {
+    const all = filteredTx.length > 0 && filteredTx.every((r) => selectedTxByKey.has(txStableKey(r)));
+    setSelectedTxByKey((prev) => {
+      const next = new Map(prev);
+      if (all) {
+        filteredTx.forEach((r) => next.delete(txStableKey(r)));
+      } else {
+        filteredTx.forEach((r) => next.set(txStableKey(r), r));
+      }
+      return next;
+    });
+  };
+
+  const onBulkPanelChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const v = e.target.value as "bulk" | "export";
+    setBulkPanel("bulk");
+    if (v !== "export") return;
+    const list = Array.from(selectedTxByKey.values());
+    if (list.length === 0) {
+      window.alert("Select at least one transaction to export.");
+      return;
+    }
+    downloadCsv(
+      `virtual-card-transactions-user-${user.id}`,
+      ["transaction_id", "amount", "status", "card", "sub_type", "date", "kind", "database_id"],
+      list.map((r) => [
+        r.id,
+        r.amount,
+        r.status,
+        r.cardLabel,
+        r.subType,
+        r.date,
+        r.kind,
+        r.databaseId ?? "",
+      ])
+    );
+  };
 
   const unfreezeMut = useMutation({
     mutationFn: (cardId: number) => adminUnfreezeVirtualCard(cardId),
@@ -517,12 +588,12 @@ const VirtualCardsPanel: React.FC<VirtualCardsPanelProps> = ({ user }) => {
                 <select
                   className={selectClass}
                   style={{ backgroundColor: FILTER_DROPDOWN_BG }}
-                  defaultValue=""
+                  value={bulkPanel}
+                  onChange={onBulkPanelChange}
                   aria-label="Bulk action"
                 >
-                  <option value="">Bulk Action</option>
+                  <option value="bulk">Bulk Action</option>
                   <option value="export">Export selected</option>
-                  <option value="flag">Flag for review</option>
                 </select>
                 <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">▾</span>
               </div>
@@ -537,9 +608,12 @@ const VirtualCardsPanel: React.FC<VirtualCardsPanelProps> = ({ user }) => {
                 <th className="w-14 px-5 py-4 align-middle font-semibold text-gray-600">
                   <span className="sr-only">Select</span>
                   <input
+                    ref={selectAllTxRef}
                     type="checkbox"
+                    checked={allTxOnPageSelected}
+                    onChange={toggleAllTxOnPage}
                     className="h-4 w-4 rounded border-2 border-gray-400 bg-white accent-[#21D721]"
-                    aria-label="Select all"
+                    aria-label="Select all on this page"
                   />
                 </th>
                 <th className="px-5 py-4 font-semibold text-gray-700">Transaction id</th>
@@ -574,6 +648,8 @@ const VirtualCardsPanel: React.FC<VirtualCardsPanelProps> = ({ user }) => {
                     <td className="px-5 py-4 align-middle">
                       <input
                         type="checkbox"
+                        checked={selectedTxByKey.has(txStableKey(row))}
+                        onChange={() => toggleTxRow(row)}
                         className="h-4 w-4 rounded border-2 border-gray-400 bg-white accent-[#21D721]"
                         aria-label={`Select ${row.id}`}
                       />

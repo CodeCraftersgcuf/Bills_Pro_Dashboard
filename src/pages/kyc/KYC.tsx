@@ -1,4 +1,4 @@
-import React, { useDeferredValue, useMemo, useState } from "react";
+import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Users, UserCheck, UserX, ChevronDown, Search } from "lucide-react";
 import StatCard from "../../components/StatCard";
@@ -8,6 +8,7 @@ import { approveKyc, fetchAdminKycList, rejectKyc, type KycRecord } from "../../
 import { getAdminToken } from "../../api/authToken";
 import { avatarUrlForName } from "../../utils/avatarUrl";
 import { presetToFromTo, type DateRangePreset } from "../../utils/dateRange";
+import { downloadCsv } from "../../utils/csvDownload";
 
 const GREEN = "#1B800F";
 const TABLE_HEADER_GREEN = "#21D721";
@@ -94,6 +95,15 @@ function fmtInt(n: number): string {
   return n.toLocaleString("en-NG");
 }
 
+type KycExportRow = {
+  key: string;
+  name: string;
+  email: string;
+  phone: string;
+  kycStatus: string;
+  date: string;
+};
+
 const KYC: React.FC = () => {
   const hasToken = Boolean(getAdminToken());
   const qc = useQueryClient();
@@ -106,6 +116,9 @@ const KYC: React.FC = () => {
   const searchDebounced = useDeferredValue(search);
   const [page, setPage] = useState(1);
   const [datePreset, setDatePreset] = useState<DateRangePreset>("all");
+  const [selectedKyc, setSelectedKyc] = useState<Map<string, KycExportRow>>(() => new Map());
+  const [bulkKyc, setBulkKyc] = useState<"bulk" | "export">("bulk");
+  const selectAllKycRef = useRef<HTMLInputElement>(null);
   const { from, to } = presetToFromTo(datePreset);
 
   const statsQ = useQuery({
@@ -138,6 +151,84 @@ const KYC: React.FC = () => {
   });
 
   const rows = kycQ.data?.data ?? [];
+
+  const kycExportRows: KycExportRow[] = useMemo(() => {
+    return rows.map((raw) => {
+      const isUnverified = filter === "unverified";
+      const u = isUnverified
+        ? (raw as Record<string, unknown>)
+        : (((raw as KycRecord).user as Record<string, unknown>) || {});
+      const name =
+        String(u.name ?? "") ||
+        [u.first_name, u.last_name].filter(Boolean).join(" ").trim() ||
+        "—";
+      const email = String(u.email ?? "—");
+      const phone = String(u.phone_number ?? "—");
+      const st = mapApiStatus(raw as KycRecord, isUnverified);
+      const dateRaw = isUnverified ? String(u.created_at ?? "") : String((raw as KycRecord).created_at ?? "");
+      const key = isUnverified ? `u-${String(u.id)}` : `k-${(raw as KycRecord).id}`;
+      return {
+        key,
+        name,
+        email,
+        phone,
+        kycStatus: st,
+        date: formatTableDate(dateRaw),
+      };
+    });
+  }, [rows, filter]);
+
+  useEffect(() => {
+    setSelectedKyc(new Map());
+  }, [filter, page, searchDebounced, from, to]);
+
+  const allKycSelected =
+    kycExportRows.length > 0 && kycExportRows.every((r) => selectedKyc.has(r.key));
+  const someKycSelected = kycExportRows.some((r) => selectedKyc.has(r.key));
+
+  useEffect(() => {
+    const el = selectAllKycRef.current;
+    if (!el) return;
+    el.indeterminate = someKycSelected && !allKycSelected;
+  }, [allKycSelected, someKycSelected, kycExportRows]);
+
+  const toggleKycRow = (row: KycExportRow) => {
+    setSelectedKyc((prev) => {
+      const next = new Map(prev);
+      if (next.has(row.key)) next.delete(row.key);
+      else next.set(row.key, row);
+      return next;
+    });
+  };
+
+  const toggleAllKycOnPage = () => {
+    const all = kycExportRows.length > 0 && kycExportRows.every((r) => selectedKyc.has(r.key));
+    setSelectedKyc((prev) => {
+      const next = new Map(prev);
+      if (all) {
+        kycExportRows.forEach((r) => next.delete(r.key));
+      } else {
+        kycExportRows.forEach((r) => next.set(r.key, r));
+      }
+      return next;
+    });
+  };
+
+  const onBulkKycChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const v = e.target.value as "bulk" | "export";
+    setBulkKyc("bulk");
+    if (v !== "export") return;
+    const list = Array.from(selectedKyc.values());
+    if (list.length === 0) {
+      window.alert("Select at least one row to export.");
+      return;
+    }
+    downloadCsv(
+      "kyc-records",
+      ["key", "name", "email", "phone", "kyc_status", "date"],
+      list.map((r) => [r.key, r.name, r.email, r.phone, r.kycStatus, r.date])
+    );
+  };
 
   const refreshKyc = async () => {
     await qc.invalidateQueries({ queryKey: ["admin", "kyc-list"] });
@@ -298,12 +389,18 @@ const KYC: React.FC = () => {
             );
           })}
         </div>
-        <button
-          type="button"
-          className="w-full shrink-0 rounded-full bg-[#E8E8E8] px-6 py-2.5 text-sm font-semibold text-gray-700 shadow-sm transition-colors hover:bg-[#DDDDDD] sm:w-auto"
-        >
-          Bulk Action
-        </button>
+        <div className="relative w-full shrink-0 sm:w-auto">
+          <select
+            value={bulkKyc}
+            onChange={onBulkKycChange}
+            className="w-full cursor-pointer appearance-none rounded-full border-0 bg-[#E8E8E8] py-2.5 pl-5 pr-10 text-sm font-semibold text-gray-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-[#1B800F]/25"
+            aria-label="Bulk action"
+          >
+            <option value="bulk">Bulk Action</option>
+            <option value="export">Export</option>
+          </select>
+          <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
+        </div>
       </div>
 
       <section className="overflow-hidden rounded-3xl bg-white shadow-md">
@@ -342,9 +439,12 @@ const KYC: React.FC = () => {
                 <th className="w-12 px-5 py-4 align-middle font-semibold text-gray-600">
                   <span className="sr-only">Select</span>
                   <input
+                    ref={selectAllKycRef}
                     type="checkbox"
+                    checked={allKycSelected}
+                    onChange={toggleAllKycOnPage}
                     className="h-4 w-4 rounded-none border-2 border-gray-400 bg-white accent-[#21D721] focus:ring-2 focus:ring-[#21D721]/40"
-                    aria-label="Select all"
+                    aria-label="Select all on this page"
                   />
                 </th>
                 <th className="px-5 py-4 align-middle font-semibold text-gray-700">Name</th>
@@ -386,6 +486,7 @@ const KYC: React.FC = () => {
                     : String((raw as KycRecord).created_at ?? "");
                   const avatar = avatarUrlForName(name);
                   const key = isUnverified ? `u-${String(u.id)}` : `k-${(raw as KycRecord).id}`;
+                  const exportRow = kycExportRows[i];
                   return (
                     <tr
                       key={key}
@@ -395,6 +496,8 @@ const KYC: React.FC = () => {
                       <td className="px-5 py-5 align-middle">
                         <input
                           type="checkbox"
+                          checked={exportRow ? selectedKyc.has(exportRow.key) : false}
+                          onChange={() => exportRow && toggleKycRow(exportRow)}
                           className="h-4 w-4 rounded-none border-2 border-gray-400 bg-white accent-[#21D721] focus:ring-2 focus:ring-[#21D721]/40"
                           aria-label={`Select ${name}`}
                         />

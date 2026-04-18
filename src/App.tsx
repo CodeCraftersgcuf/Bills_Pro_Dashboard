@@ -16,6 +16,7 @@ import BillPayments from "./pages/billPayments/BillPayments";
 import MasterWallet from "./pages/masterWallet/MasterWallet";
 import ReceivedCrypto from "./pages/receivedCrypto/ReceivedCrypto";
 import CryptoVendors from "./pages/cryptoVendors/CryptoVendors";
+import ProfitCenter from "./pages/profit/ProfitCenter";
 import Analytics from "./pages/analytics/Analytics";
 import Support from "./pages/support/Support";
 import Notification from "./pages/notification/Notification";
@@ -46,6 +47,7 @@ const App: React.FC = () => {
                 <Route path="master-wallet" element={<MasterWallet />} />
                 <Route path="received-crypto" element={<ReceivedCrypto />} />
                 <Route path="crypto-vendors" element={<CryptoVendors />} />
+                <Route path="profit" element={<ProfitCenter />} />
                 <Route path="analytics" element={<Analytics />} />
                 <Route path="support" element={<Support />} />
                 <Route path="notification" element={<Notification />} />

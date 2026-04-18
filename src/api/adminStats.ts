@@ -1,6 +1,8 @@
 import { apiGet } from "./httpClient";
 
 export type AdminDashboardStats = {
+  /** Echo of `range` query param (default `12m`). */
+  range?: "7d" | "30d" | "90d" | "12m";
   users_total: number;
   new_users_30d: number;
   active_users: number;
@@ -37,6 +39,7 @@ export type AdminDashboardStats = {
   }[];
 };
 
-export function fetchAdminStats(): Promise<AdminDashboardStats> {
-  return apiGet<AdminDashboardStats>("api/admin/stats");
+/** Omit `range` for legacy behaviour: all-time transaction count & NGN revenue; chart defaults to last 12 months. */
+export function fetchAdminStats(range?: "7d" | "30d" | "90d" | "12m"): Promise<AdminDashboardStats> {
+  return apiGet<AdminDashboardStats>("api/admin/stats", range != null ? { range } : undefined);
 }

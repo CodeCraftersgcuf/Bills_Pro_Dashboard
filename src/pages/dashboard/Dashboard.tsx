@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Chart as ChartJS,
@@ -29,10 +29,27 @@ function fmtInt(n: number): string {
   return n.toLocaleString("en-NG");
 }
 
+type StatsRange = "7d" | "30d" | "90d" | "12m";
+
+function chartPeriodLabel(range: StatsRange): string {
+  switch (range) {
+    case "7d":
+      return "Last 7 days · NGN withdrawals vs deposits (completed)";
+    case "30d":
+      return "Last 30 days · NGN withdrawals vs deposits (completed)";
+    case "90d":
+      return "Last 90 days (weekly buckets) · NGN withdrawals vs deposits (completed)";
+    default:
+      return "Last 12 months · NGN withdrawals vs deposits (completed)";
+  }
+}
+
 const Dashboard: React.FC = () => {
+  const [statsRange, setStatsRange] = useState<StatsRange>("12m");
+
   const statsQ = useQuery({
-    queryKey: ["admin", "stats"],
-    queryFn: fetchAdminStats,
+    queryKey: ["admin", "stats", statsRange],
+    queryFn: () => fetchAdminStats(statsRange),
   });
 
   const s = statsQ.data;
@@ -117,12 +134,10 @@ const Dashboard: React.FC = () => {
           <div className="relative inline-flex w-full sm:w-auto">
             <select
               className="w-full cursor-pointer appearance-none rounded-xl border border-white/25 bg-white/15 py-3 pl-4 pr-10 text-sm font-medium text-white hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/40 sm:w-[200px]"
-              defaultValue="range"
+              value={statsRange}
+              onChange={(e) => setStatsRange(e.target.value as StatsRange)}
               aria-label="Select date range"
             >
-              <option value="range" className="text-gray-900">
-                Select Date
-              </option>
               <option value="7d" className="text-gray-900">
                 Last 7 days
               </option>
@@ -131,6 +146,9 @@ const Dashboard: React.FC = () => {
               </option>
               <option value="90d" className="text-gray-900">
                 Last 90 days
+              </option>
+              <option value="12m" className="text-gray-900">
+                Last 12 months
               </option>
             </select>
             <ChevronDown
@@ -144,8 +162,18 @@ const Dashboard: React.FC = () => {
         ) : null}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3 md:gap-5">
           <StatCard icon={Users} label="Total Users" value={totalUsers} hint="All registered users" />
-          <StatCard icon={CreditCard} label="Transactions" value={txTotal} hint="All ledger transactions" />
-          <StatCard icon={Banknote} label="Revenue (NGN)" value={revenue} hint="Sum of completed NGN volume" />
+          <StatCard
+            icon={CreditCard}
+            label="Transactions"
+            value={txTotal}
+            hint="Ledger transactions in selected period"
+          />
+          <StatCard
+            icon={Banknote}
+            label="Revenue (NGN)"
+            value={revenue}
+            hint="Completed NGN volume in selected period"
+          />
         </div>
       </section>
 
@@ -165,7 +193,7 @@ const Dashboard: React.FC = () => {
                 <p className="mt-1 text-3xl font-bold tracking-tight text-gray-900 md:text-4xl">
                   {s?.revenue_ngn_display ?? "—"}
                 </p>
-                <p className="mt-1 text-xs text-gray-600">Last 12 months · NGN withdrawals vs deposits (completed)</p>
+                <p className="mt-1 text-xs text-gray-600">{chartPeriodLabel(statsRange)}</p>
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-5 text-xs font-medium text-gray-800">
@@ -273,7 +301,7 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      <LatestUsersTable />
+      <LatestUsersTable datePreset={statsRange} />
     </div>
   );
 };

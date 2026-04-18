@@ -1,4 +1,4 @@
-import React, { useDeferredValue, useState } from "react";
+import React, { useDeferredValue, useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { ChevronDown, Search } from "lucide-react";
@@ -7,9 +7,10 @@ import {
   CRYPTO_WALLET_BG,
   NAIRA_WALLET_BG,
 } from "../../components/WalletPanel";
-import { fetchWalletTotals, fetchWalletUsers } from "../../api/adminWalletUsers";
+import { fetchWalletTotals, fetchWalletUsers, type WalletUserRow } from "../../api/adminWalletUsers";
 import { getAdminToken } from "../../api/authToken";
 import { presetToFromTo, type DateRangePreset } from "../../utils/dateRange";
+import { downloadCsv } from "../../utils/csvDownload";
 
 const TABLE_HEADER_GREEN = "#21D721";
 const TABLE_SEARCH_BG = "#189016";
@@ -24,6 +25,9 @@ const WalletManagement: React.FC = () => {
   const searchDebounced = useDeferredValue(search);
   const [page, setPage] = useState(1);
   const [datePreset, setDatePreset] = useState<DateRangePreset>("all");
+  const [selectedWalletUsers, setSelectedWalletUsers] = useState<Map<number, WalletUserRow>>(() => new Map());
+  const [bulkWm, setBulkWm] = useState<"bulk" | "export">("bulk");
+  const selectAllWmRef = useRef<HTMLInputElement>(null);
   const { from, to } = presetToFromTo(datePreset);
 
   const totalsQ = useQuery({
@@ -46,6 +50,73 @@ const WalletManagement: React.FC = () => {
   });
 
   const rows = rowsQ.data?.data ?? [];
+
+  useEffect(() => {
+    setSelectedWalletUsers(new Map());
+  }, [page, searchDebounced, from, to]);
+
+  const allWmSelected = rows.length > 0 && rows.every((r) => selectedWalletUsers.has(r.id));
+  const someWmSelected = rows.some((r) => selectedWalletUsers.has(r.id));
+
+  useEffect(() => {
+    const el = selectAllWmRef.current;
+    if (!el) return;
+    el.indeterminate = someWmSelected && !allWmSelected;
+  }, [allWmSelected, someWmSelected, rows]);
+
+  const toggleWmRow = (r: WalletUserRow) => {
+    setSelectedWalletUsers((prev) => {
+      const next = new Map(prev);
+      if (next.has(r.id)) next.delete(r.id);
+      else next.set(r.id, r);
+      return next;
+    });
+  };
+
+  const toggleAllWmOnPage = () => {
+    const all = rows.length > 0 && rows.every((r) => selectedWalletUsers.has(r.id));
+    setSelectedWalletUsers((prev) => {
+      const next = new Map(prev);
+      if (all) {
+        rows.forEach((r) => next.delete(r.id));
+      } else {
+        rows.forEach((r) => next.set(r.id, r));
+      }
+      return next;
+    });
+  };
+
+  const onBulkWmChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const v = e.target.value as "bulk" | "export";
+    setBulkWm("bulk");
+    if (v !== "export") return;
+    const list = Array.from(selectedWalletUsers.values());
+    if (list.length === 0) {
+      window.alert("Select at least one row to export.");
+      return;
+    }
+    downloadCsv(
+      "wallet-management-users",
+      [
+        "id",
+        "display_name",
+        "email",
+        "naira_balance_display",
+        "crypto_balance_display",
+        "naira_tx_count",
+        "crypto_tx_count",
+      ],
+      list.map((r) => [
+        r.id,
+        r.display_name,
+        r.email ?? "",
+        r.naira_balance_display,
+        r.crypto_balance_display,
+        r.naira_tx_count,
+        r.crypto_tx_count,
+      ])
+    );
+  };
 
   return (
     <div className="mx-auto max-w-[1600px] space-y-6 md:space-y-8">
@@ -86,12 +157,18 @@ const WalletManagement: React.FC = () => {
       </div>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <button
-          type="button"
-          className="w-full rounded-xl bg-[#E8E8E8] px-5 py-2.5 text-sm font-semibold text-gray-800 shadow-sm transition-colors hover:bg-[#DDDDDD] sm:w-auto"
-        >
-          Bulk Action
-        </button>
+        <div className="relative w-full sm:w-auto">
+          <select
+            value={bulkWm}
+            onChange={onBulkWmChange}
+            className="w-full cursor-pointer appearance-none rounded-xl border border-gray-200 bg-[#E8E8E8] py-2.5 pl-4 pr-9 text-sm font-semibold text-gray-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-[#1B800F]/25"
+            aria-label="Bulk action"
+          >
+            <option value="bulk">Bulk Action</option>
+            <option value="export">Export</option>
+          </select>
+          <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
+        </div>
       </div>
 
       <section className="overflow-hidden rounded-3xl bg-white shadow-md">
@@ -131,9 +208,12 @@ const WalletManagement: React.FC = () => {
                 <th className="w-12 px-5 py-4 align-middle font-semibold text-gray-600">
                   <span className="sr-only">Select</span>
                   <input
+                    ref={selectAllWmRef}
                     type="checkbox"
+                    checked={allWmSelected}
+                    onChange={toggleAllWmOnPage}
                     className="h-4 w-4 rounded-none border-2 border-gray-400 bg-white accent-[#21D721]"
-                    aria-label="Select all"
+                    aria-label="Select all on this page"
                   />
                 </th>
                 <th className="px-5 py-4 font-semibold text-gray-700">Name</th>
@@ -165,7 +245,13 @@ const WalletManagement: React.FC = () => {
                     className="border-t border-gray-100"
                   >
                     <td className="px-3 py-3">
-                      <input type="checkbox" className="accent-[#21D721]" aria-label={`Select ${r.id}`} />
+                      <input
+                        type="checkbox"
+                        checked={selectedWalletUsers.has(r.id)}
+                        onChange={() => toggleWmRow(r)}
+                        className="accent-[#21D721]"
+                        aria-label={`Select ${r.id}`}
+                      />
                     </td>
                     <td className="px-4 py-3 font-medium text-gray-900">{r.display_name}</td>
                     <td className="px-4 py-3 text-gray-800">{r.naira_balance_display}</td>

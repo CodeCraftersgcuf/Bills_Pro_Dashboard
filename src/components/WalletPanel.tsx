@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, MoreVertical, Search, X } from "lucide-react";
 import type { User } from "../data/users";
@@ -17,6 +17,7 @@ import { fetchAdminTransaction, type AdminTransactionRow } from "../api/adminTra
 import { adminAdjustCrypto, adminAdjustFiat } from "../api/adminAdjustments";
 import { getAdminToken } from "../api/authToken";
 import { humanizeApiLabelOrDash } from "../utils/humanizeApiLabel";
+import { downloadCsv } from "../utils/csvDownload";
 import CryptoWalletsModal from "./CryptoWalletsModal";
 import CryptoDepositModal from "./CryptoDepositModal";
 import CryptoWithdrawModal from "./CryptoWithdrawModal";
@@ -55,6 +56,10 @@ type WalletTxRow = {
   date: string;
   detailRef: { kind: "transaction"; id: string } | { kind: "deposit"; id: string };
 };
+
+function walletTxKey(r: WalletTxRow): string {
+  return `${r.detailRef.kind}:${r.detailRef.id}:${r.id}`;
+}
 
 const TOKEN_ICON: Record<string, string> = {
   BTC: "#F7931A",
@@ -467,6 +472,9 @@ const WalletPanel: React.FC<WalletPanelProps> = ({ user }) => {
   const [txStatusFilter, setTxStatusFilter] = useState("");
   const [detailRow, setDetailRow] = useState<WalletTxRow | null>(null);
   const [adminActionNotice, setAdminActionNotice] = useState<string | null>(null);
+  const [selectedWalletTx, setSelectedWalletTx] = useState<Map<string, WalletTxRow>>(() => new Map());
+  const [bulkWallet, setBulkWallet] = useState<"bulk" | "export">("bulk");
+  const selectAllWalletRef = useRef<HTMLInputElement>(null);
 
   const uid = user.id;
 
@@ -638,6 +646,68 @@ const WalletPanel: React.FC<WalletPanelProps> = ({ user }) => {
     }
     return rows;
   }, [baseTxRows, typePill, txSearch, txStatusFilter]);
+
+  useEffect(() => {
+    setSelectedWalletTx(new Map());
+  }, [uid, typePill, txSearch, txStatusFilter]);
+
+  const allWalletTxSelected =
+    filteredTxRows.length > 0 && filteredTxRows.every((r) => selectedWalletTx.has(walletTxKey(r)));
+  const someWalletTxSelected = filteredTxRows.some((r) => selectedWalletTx.has(walletTxKey(r)));
+
+  useEffect(() => {
+    const el = selectAllWalletRef.current;
+    if (!el) return;
+    el.indeterminate = someWalletTxSelected && !allWalletTxSelected;
+  }, [allWalletTxSelected, someWalletTxSelected, filteredTxRows]);
+
+  const toggleWalletTx = (row: WalletTxRow) => {
+    const k = walletTxKey(row);
+    setSelectedWalletTx((prev) => {
+      const next = new Map(prev);
+      if (next.has(k)) next.delete(k);
+      else next.set(k, row);
+      return next;
+    });
+  };
+
+  const toggleAllWalletTxOnPage = () => {
+    const all = filteredTxRows.length > 0 && filteredTxRows.every((r) => selectedWalletTx.has(walletTxKey(r)));
+    setSelectedWalletTx((prev) => {
+      const next = new Map(prev);
+      if (all) {
+        filteredTxRows.forEach((r) => next.delete(walletTxKey(r)));
+      } else {
+        filteredTxRows.forEach((r) => next.set(walletTxKey(r), r));
+      }
+      return next;
+    });
+  };
+
+  const onBulkWalletChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const v = e.target.value as "bulk" | "export";
+    setBulkWallet("bulk");
+    if (v !== "export") return;
+    const list = Array.from(selectedWalletTx.values());
+    if (list.length === 0) {
+      window.alert("Select at least one row to export.");
+      return;
+    }
+    downloadCsv(
+      `wallet-transactions-user-${uid}`,
+      ["id", "amount", "status", "type", "sub_type", "date", "detail_kind", "detail_id"],
+      list.map((r) => [
+        r.id,
+        r.amount,
+        r.status,
+        r.type,
+        r.subType,
+        r.date,
+        r.detailRef.kind,
+        r.detailRef.id,
+      ])
+    );
+  };
 
   const segmentedPill = (active: boolean) =>
     `rounded-full px-4 py-1.5 text-sm font-semibold transition-colors md:px-5 md:py-2 ${
@@ -918,8 +988,14 @@ const WalletPanel: React.FC<WalletPanelProps> = ({ user }) => {
             <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-600" />
           </div>
           <div className="relative">
-            <select className={selectClass} style={{ backgroundColor: FILTER_DROPDOWN_BG }} defaultValue="">
-              <option value="">Bulk Action</option>
+            <select
+              className={selectClass}
+              style={{ backgroundColor: FILTER_DROPDOWN_BG }}
+              value={bulkWallet}
+              onChange={onBulkWalletChange}
+              aria-label="Bulk action"
+            >
+              <option value="bulk">Bulk Action</option>
               <option value="export">Export</option>
             </select>
             <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-600" />
@@ -955,9 +1031,12 @@ const WalletPanel: React.FC<WalletPanelProps> = ({ user }) => {
                 <th className="w-12 px-5 py-4 align-middle font-semibold text-gray-600">
                   <span className="sr-only">Select</span>
                   <input
+                    ref={selectAllWalletRef}
                     type="checkbox"
+                    checked={allWalletTxSelected}
+                    onChange={toggleAllWalletTxOnPage}
                     className="h-4 w-4 rounded border-2 border-gray-400 bg-white accent-[#21D721]"
-                    aria-label="Select all"
+                    aria-label="Select all on this page"
                   />
                 </th>
                 <th className="px-5 py-4 font-semibold text-gray-700">Transaction id</th>
@@ -992,6 +1071,8 @@ const WalletPanel: React.FC<WalletPanelProps> = ({ user }) => {
                     <td className="px-5 py-4 align-middle">
                       <input
                         type="checkbox"
+                        checked={selectedWalletTx.has(walletTxKey(row))}
+                        onChange={() => toggleWalletTx(row)}
                         className="h-4 w-4 rounded border-2 border-gray-400 bg-white accent-[#21D721]"
                         aria-label={`Select ${row.id}`}
                       />

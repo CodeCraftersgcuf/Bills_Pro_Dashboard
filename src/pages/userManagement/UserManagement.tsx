@@ -1,12 +1,14 @@
-import React, { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import React, { useCallback, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Users, UserPlus, UserCheck, ChevronDown, Plus } from "lucide-react";
 import StatCard from "../../components/StatCard";
 import LatestUsersTable from "../../components/LatestUsersTable";
 import AddUserModal from "../../components/AddUserModal";
 import { fetchAdminStats } from "../../api/adminStats";
+import { deleteAdminUser, type AdminUserRow } from "../../api/adminUsers";
 import { getAdminToken } from "../../api/authToken";
 import type { DateRangePreset } from "../../utils/dateRange";
+import { exportUsersCsv } from "../../utils/exportUsersCsv";
 
 const GREEN = "#1B800F";
 
@@ -17,12 +19,83 @@ function fmtInt(n: number): string {
   return n.toLocaleString("en-NG");
 }
 
+function displayNameForErr(u: AdminUserRow): string {
+  const n = u.name?.trim();
+  if (n) return n;
+  const fl = [u.first_name, u.last_name].filter(Boolean).join(" ").trim();
+  return fl || `User #${u.id}`;
+}
+
+type BulkAction = "bulk" | "export" | "delete";
+
 const UserManagement: React.FC = () => {
   const hasToken = Boolean(getAdminToken());
+  const queryClient = useQueryClient();
   const [status, setStatus] = useState<StatusFilter>("all");
   const [kycFilter, setKycFilter] = useState<KycFilter>("all");
   const [datePreset, setDatePreset] = useState<DateRangePreset>("all");
   const [addUserOpen, setAddUserOpen] = useState(false);
+  const [selectedUsers, setSelectedUsers] = useState<AdminUserRow[]>([]);
+  const [bulkAction, setBulkAction] = useState<BulkAction>("bulk");
+  const [selectionResetKey, setSelectionResetKey] = useState(0);
+  const [bulkWorking, setBulkWorking] = useState(false);
+
+  const handleSelectionChange = useCallback((users: AdminUserRow[]) => {
+    setSelectedUsers(users);
+  }, []);
+
+  const runBulkAction = async (action: "export" | "delete") => {
+    if (selectedUsers.length === 0) {
+      window.alert("Select at least one user.");
+      return;
+    }
+    if (action === "export") {
+      exportUsersCsv(selectedUsers);
+      return;
+    }
+
+    const deletable = selectedUsers.filter((u) => !u.is_admin);
+    const skipped = selectedUsers.length - deletable.length;
+    if (deletable.length === 0) {
+      window.alert(
+        skipped > 0
+          ? "Admin accounts cannot be deleted. Deselect admins or choose other users."
+          : "No users can be deleted."
+      );
+      return;
+    }
+
+    let msg = `Delete ${deletable.length} user(s)? This cannot be undone.`;
+    if (skipped > 0) msg += ` (${skipped} admin account(s) will be skipped.)`;
+    if (!window.confirm(msg)) return;
+
+    setBulkWorking(true);
+    const errors: string[] = [];
+    try {
+      for (const u of deletable) {
+        try {
+          await deleteAdminUser(u.id);
+        } catch (e) {
+          errors.push(`${displayNameForErr(u)}: ${(e as Error)?.message ?? "failed"}`);
+        }
+      }
+      await queryClient.invalidateQueries({ queryKey: ["admin", "users-latest"] });
+      await queryClient.invalidateQueries({ queryKey: ["admin", "stats"] });
+      setSelectionResetKey((k) => k + 1);
+      if (errors.length > 0) {
+        window.alert(`Some deletes failed:\n${errors.slice(0, 5).join("\n")}${errors.length > 5 ? "\n…" : ""}`);
+      }
+    } finally {
+      setBulkWorking(false);
+    }
+  };
+
+  const onBulkSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const v = e.target.value as BulkAction;
+    setBulkAction("bulk");
+    if (v === "bulk") return;
+    void runBulkAction(v);
+  };
 
   const statsQ = useQuery({
     queryKey: ["admin", "stats"],
@@ -119,7 +192,13 @@ const UserManagement: React.FC = () => {
           </div>
           <div className="flex flex-wrap gap-2 sm:ml-1">
             <div className="relative">
-              <select className={selectPill} defaultValue="bulk" aria-label="Bulk action">
+              <select
+                className={selectPill}
+                value={bulkAction}
+                disabled={bulkWorking}
+                onChange={onBulkSelectChange}
+                aria-label="Bulk action"
+              >
                 <option value="bulk" className="text-gray-900">
                   Bulk Action
                 </option>
@@ -172,6 +251,9 @@ const UserManagement: React.FC = () => {
         accountStatus={status === "all" ? "all" : status === "active" ? "active" : "banned"}
         kycFilter={kycFilter}
         datePreset={datePreset}
+        enableSelection
+        onSelectionChange={handleSelectionChange}
+        selectionResetKey={selectionResetKey}
       />
     </div>
   );

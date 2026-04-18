@@ -1,4 +1,4 @@
-export type DateRangePreset = "all" | "7d" | "30d" | "90d" | "custom";
+export type DateRangePreset = "all" | "7d" | "30d" | "90d" | "12m" | "custom";
 
 function toYmdLocal(d: Date): string {
   const y = d.getFullYear();
@@ -27,6 +27,16 @@ export function presetToFromTo(
     const t = custom?.to?.trim();
     if (f && t) return { from: f, to: t };
     return {};
+  }
+
+  if (preset === "12m") {
+    const end = new Date();
+    const start = new Date(end);
+    start.setMonth(start.getMonth() - 12);
+    return {
+      from: toYmdLocal(start),
+      to: toYmdLocal(end),
+    };
   }
 
   const days = preset === "7d" ? 7 : preset === "30d" ? 30 : 90;
