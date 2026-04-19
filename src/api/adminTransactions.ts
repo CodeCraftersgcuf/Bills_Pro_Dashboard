@@ -17,6 +17,8 @@ export type AdminTransactionRow = {
   bank_name: string | null;
   account_number: string | null;
   account_name: string | null;
+  /** Bill/airtime flows often store phone or meter in metadata instead of top-level columns. */
+  metadata?: Record<string, unknown> | null;
   created_at: string | null;
   user?: {
     id: number;

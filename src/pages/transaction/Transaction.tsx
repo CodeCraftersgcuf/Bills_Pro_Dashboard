@@ -300,6 +300,47 @@ function formatMoneyAmount(v: string | number | null | undefined, currency: stri
   return `${n.toLocaleString()} ${currency || ""}`.trim();
 }
 
+function strMeta(v: unknown): string {
+  if (v === null || v === undefined) return "";
+  const s = String(v).trim();
+  return s;
+}
+
+/**
+ * Deposits use bank_* columns; bill payments store phone/meter and provider in metadata.
+ */
+function receiptBankFields(t: AdminTransactionRow): { bankName: string; accountNumber: string; accountName: string } {
+  const meta = t.metadata && typeof t.metadata === "object" ? (t.metadata as Record<string, unknown>) : {};
+  const ty = (t.type || "").toLowerCase();
+
+  if (ty === "bill_payment") {
+    const accountNumber =
+      strMeta(t.account_number) ||
+      strMeta(meta.accountNumber) ||
+      strMeta(meta.phoneNumber) ||
+      strMeta(meta.rechargeAccount);
+    const accountName = strMeta(t.account_name) || strMeta(meta.accountName) || strMeta(meta.beneficiaryName);
+    const bankName =
+      strMeta(t.bank_name) ||
+      strMeta(meta.providerName) ||
+      strMeta(meta.provider_name) ||
+      strMeta(meta.categoryName) ||
+      strMeta(meta.category_name);
+
+    return {
+      bankName: bankName || "—",
+      accountNumber: accountNumber || "—",
+      accountName: accountName || "—",
+    };
+  }
+
+  return {
+    bankName: strMeta(t.bank_name) || "—",
+    accountNumber: strMeta(t.account_number) || "—",
+    accountName: strMeta(t.account_name) || "—",
+  };
+}
+
 function toTxRow(t: AdminTransactionRow): TxRow {
   const u = t.user;
   const name = u?.name?.trim() || u?.email || "—";
@@ -309,6 +350,7 @@ function toTxRow(t: AdminTransactionRow): TxRow {
   const amount = formatMoneyAmount(t.amount, t.currency);
   const fee = formatMoneyAmount(t.fee, t.currency);
   const total = formatMoneyAmount(t.total_amount, t.currency);
+  const bank = receiptBankFields(t);
   return {
     id: String(t.transaction_id ?? t.id),
     name,
@@ -322,9 +364,9 @@ function toTxRow(t: AdminTransactionRow): TxRow {
       amount,
       fee,
       totalAmount: total,
-      bankName: t.bank_name || "—",
-      accountNumber: t.account_number || "—",
-      accountName: t.account_name || "—",
+      bankName: bank.bankName,
+      accountNumber: bank.accountNumber,
+      accountName: bank.accountName,
       reference: t.reference || "—",
       transactionId: String(t.transaction_id ?? t.id),
       description: t.description || "—",
