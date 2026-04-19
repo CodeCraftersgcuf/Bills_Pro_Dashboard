@@ -33,7 +33,7 @@ export function StatCard({
         className="flex flex-1 items-center justify-center px-3 py-4 md:px-4 md:py-5"
         style={{ backgroundColor: STAT_CARD_RIGHT }}
       >
-        <p className="text-center text-2xl font-bold tracking-tight text-white sm:text-3xl md:text-4xl">
+        <p className="min-w-0 max-w-full break-words px-1 text-center text-xl font-bold tracking-tight text-white sm:text-2xl md:text-3xl lg:text-4xl">
           {value}
         </p>
       </div>

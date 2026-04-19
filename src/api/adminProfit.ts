@@ -1,6 +1,25 @@
 import { apiGet, apiPut } from "./httpClient";
 
-export type PercentageBasis = "amount" | "total_amount" | "fee";
+export type PercentageBasis = "amount" | "total_amount" | "fee" | "ngn_notional";
+
+export type RevenueKind =
+  | "fiat_fee"
+  | "bill_fee"
+  | "crypto_usd_notional_fee"
+  | "exchange_trade"
+  | "virtual_card_fee"
+  | "other";
+
+export interface TransactionRevenueInfo {
+  revenue_kind: RevenueKind;
+  label_customer_flow: string;
+  label_fee_line: string;
+  ngn_notional: string | null;
+  crypto_units: string | null;
+  reference_ngn_per_crypto: string | null;
+  applied_ngn_per_crypto: string | null;
+  implied_spread_ngn: string | null;
+}
 
 export interface ServiceProfitSettingRow {
   id: number;
@@ -22,6 +41,27 @@ export interface ProfitBreakdown {
   basis: string;
   service_key: string;
   setting_label: string | null;
+  /** When profit is computed on NGN notional (crypto buy/sell), profit amounts are in NGN. */
+  profit_currency?: string | null;
+  /**
+   * “Your profit” % from Profit settings (tab 1). Separate from customer fee % in Rates.
+   * Null when no active profit rule applied.
+   */
+  admin_profit_percent?: string | null;
+}
+
+/** Snapshot of the matching Rates row (fixed + % + min, etc.) for this transaction. */
+export interface PlatformRateSnapshot {
+  category: string;
+  service_key: string;
+  sub_service_key: string | null;
+  crypto_asset: string | null;
+  network_key: string | null;
+  fixed_fee_ngn: string | null;
+  percentage_fee: string | null;
+  min_fee_ngn: string | null;
+  fee_usd: string | null;
+  exchange_rate_ngn_per_usd: string | null;
 }
 
 export interface ProfitTransactionRow {
@@ -39,6 +79,10 @@ export interface ProfitTransactionRow {
   created_at: string | null;
   user: { id: number; display_name: string; email: string | null } | null;
   profit: ProfitBreakdown;
+  /** How customer pricing works for this row (fee vs exchange vs crypto USD fee). */
+  revenue?: TransactionRevenueInfo;
+  /** Present when the API can match this ledger row to a Rates configuration. */
+  rate_from_admin?: PlatformRateSnapshot | null;
 }
 
 export interface ProfitSummary {

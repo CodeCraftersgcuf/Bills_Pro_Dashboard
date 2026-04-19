@@ -296,7 +296,7 @@ function formatMoneyAmount(v: string | number | null | undefined, currency: stri
   const n = typeof v === "string" ? parseFloat(v) : Number(v);
   if (Number.isNaN(n)) return "—";
   const c = (currency || "").toUpperCase();
-  if (c === "NGN") return `₦${n.toLocaleString("en-NG", { maximumFractionDigits: 2 })}`;
+  if (c === "NGN") return `₦${n.toLocaleString("en-NG", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
   return `${n.toLocaleString()} ${currency || ""}`.trim();
 }
 

@@ -43,6 +43,12 @@ function numOrNull(s: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+/** Naira list cells: max 2 decimal places */
+function formatNgnDisplay(v: number): string {
+  if (!Number.isFinite(v)) return "—";
+  return v.toLocaleString("en-NG", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+}
+
 const Rates: React.FC = () => {
   const qc = useQueryClient();
   const hasToken = Boolean(getAdminToken());
@@ -583,12 +589,12 @@ const Rates: React.FC = () => {
                       <>
                         <td className="px-4 py-3 text-gray-800">{serviceLabel(r.service_key)}</td>
                         <td className="px-4 py-3 text-gray-800">{subLabel(r.sub_service_key)}</td>
-                        <td className="px-4 py-3 text-gray-800">₦{Number(r.fixed_fee_ngn).toLocaleString("en-US")}</td>
+                        <td className="px-4 py-3 text-gray-800">₦{formatNgnDisplay(Number(r.fixed_fee_ngn))}</td>
                         <td className="px-4 py-3 text-gray-800">
                           {r.percentage_fee != null ? `${r.percentage_fee}%` : "—"}
                         </td>
                         <td className="px-4 py-3 text-gray-800">
-                          {r.min_fee_ngn != null ? `₦${Number(r.min_fee_ngn).toLocaleString("en-US")}` : "—"}
+                          {r.min_fee_ngn != null ? `₦${formatNgnDisplay(Number(r.min_fee_ngn))}` : "—"}
                         </td>
                       </>
                     )}
@@ -600,7 +606,7 @@ const Rates: React.FC = () => {
                         <td className="max-w-[320px] px-4 py-3 text-xs text-gray-800">
                           {r.service_key === "buy" || r.service_key === "sell" ? (
                             r.exchange_rate_ngn_per_usd != null && r.exchange_rate_ngn_per_usd !== "" ? (
-                              <span>₦{Number(r.exchange_rate_ngn_per_usd).toLocaleString("en-US")} / unit</span>
+                              <span>₦{formatNgnDisplay(Number(r.exchange_rate_ngn_per_usd))} / unit</span>
                             ) : (
                               <span className="text-gray-500">Wallet default rate</span>
                             )
@@ -620,7 +626,7 @@ const Rates: React.FC = () => {
                         <td className="px-4 py-3 text-gray-800">{serviceLabel(r.service_key)}</td>
                         <td className="px-4 py-3 font-medium text-gray-800">
                           {r.exchange_rate_ngn_per_usd != null
-                            ? `₦${Number(r.exchange_rate_ngn_per_usd).toLocaleString("en-US")} = $1`
+                            ? `₦${formatNgnDisplay(Number(r.exchange_rate_ngn_per_usd))} = $1`
                             : "—"}
                         </td>
                         <td className="px-4 py-3 text-gray-800">
@@ -639,14 +645,12 @@ const Rates: React.FC = () => {
                               r.exchange_rate_ngn_per_usd !== "" ? (
                                 <span className="mt-0.5 block text-xs text-gray-600">
                                   ≈ ₦
-                                  {Number(
-                                    Number(r.fee_usd) * Number(r.exchange_rate_ngn_per_usd),
-                                  ).toLocaleString("en-US", { maximumFractionDigits: 0 })}
+                                  {formatNgnDisplay(Number(r.fee_usd) * Number(r.exchange_rate_ngn_per_usd))}
                                 </span>
                               ) : null}
                             </span>
                           ) : Number(r.fixed_fee_ngn) > 0 && (r.service_key === "fund" || r.service_key === "withdraw") ? (
-                            `₦${Number(r.fixed_fee_ngn).toLocaleString("en-US")} (legacy NGN)`
+                            `₦${formatNgnDisplay(Number(r.fixed_fee_ngn))} (legacy NGN)`
                           ) : (
                             "—"
                           )}
