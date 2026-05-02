@@ -65,6 +65,7 @@ function matchesCardFilter(card: UserVirtualCard, f: CardStatusFilter): boolean 
 }
 
 function mapApiCard(c: AdminVirtualCardSummary): UserVirtualCard {
+  const scheme = c.card_scheme === "visa" ? "visa" : "mastercard";
   return {
     id: String(c.id),
     userId: String(c.user_id),
@@ -75,6 +76,7 @@ function mapApiCard(c: AdminVirtualCardSummary): UserVirtualCard {
     status: c.status,
     detailsButtonVariant: c.details_button_variant,
     cardColor: c.card_color,
+    cardScheme: scheme,
   };
 }
 
@@ -436,6 +438,11 @@ const VirtualCardsPanel: React.FC<VirtualCardsPanelProps> = ({ user }) => {
                     <div className="flex items-start justify-between gap-2">
                       <p className="max-w-[70%] text-[11px] font-medium leading-snug text-white/85 md:text-xs">
                         {card.title}
+                        {card.cardScheme ? (
+                          <span className="mt-1 block rounded-md bg-white/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+                            {card.cardScheme === "visa" ? "Visa" : "Mastercard"}
+                          </span>
+                        ) : null}
                       </p>
                       <span className="shrink-0 text-sm font-bold tracking-tight text-white">Bills Pro</span>
                     </div>

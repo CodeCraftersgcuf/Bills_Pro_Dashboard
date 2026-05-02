@@ -25,7 +25,6 @@ export interface VirtualCardDetailsModalProps {
 }
 
 type MainTab = "details" | "billing" | "limit";
-type BillingSub = "ng" | "us";
 
 const VirtualCardDetailsModal: React.FC<VirtualCardDetailsModalProps> = ({
   open,
@@ -36,7 +35,6 @@ const VirtualCardDetailsModal: React.FC<VirtualCardDetailsModalProps> = ({
 }) => {
   const qc = useQueryClient();
   const [mainTab, setMainTab] = useState<MainTab>("details");
-  const [billingSub, setBillingSub] = useState<BillingSub>("ng");
   const [reveal, setReveal] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
 
@@ -49,7 +47,6 @@ const VirtualCardDetailsModal: React.FC<VirtualCardDetailsModalProps> = ({
   useEffect(() => {
     if (!open) {
       setMainTab("details");
-      setBillingSub("ng");
       setReveal(false);
     }
   }, [open]);
@@ -99,6 +96,8 @@ const VirtualCardDetailsModal: React.FC<VirtualCardDetailsModalProps> = ({
       ? `${String(card.expiry_month).padStart(2, "0")}/${String(card.expiry_year).slice(-2)}`
       : "—";
   const cardTitle = typeof card?.card_name === "string" ? card.card_name : holderName;
+  const schemeRaw = String(card?.card_type ?? "mastercard").toLowerCase();
+  const schemeLabel = schemeRaw === "visa" ? "Visa" : "Mastercard";
   const isFrozen = Boolean(card?.is_frozen);
 
   const streetNg = String(card?.billing_address_street ?? "");
@@ -107,8 +106,9 @@ const VirtualCardDetailsModal: React.FC<VirtualCardDetailsModalProps> = ({
   const countryNg = String(card?.billing_address_country ?? "");
   const postalNg = String(card?.billing_address_postal_code ?? "");
 
-  const meta = card?.metadata as Record<string, unknown> | undefined;
-  const usAddr = meta?.us_billing_address as Record<string, string> | undefined;
+  const isVisa = schemeRaw === "visa";
+  const mastercardAddressLine =
+    streetNg && cityNg && postalNg ? `${streetNg}, ${cityNg}, ${postalNg}` : "";
 
   return (
     <div className="fixed inset-0 z-[270] flex items-center justify-center p-4 sm:p-6" role="presentation">
@@ -120,7 +120,10 @@ const VirtualCardDetailsModal: React.FC<VirtualCardDetailsModalProps> = ({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex shrink-0 items-start justify-between gap-3 border-b border-gray-100 px-5 py-4">
-          <h2 className="text-lg font-bold text-gray-900">Virtual card details</h2>
+          <div>
+            <h2 className="text-lg font-bold text-gray-900">Virtual card details</h2>
+            <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-indigo-700">{schemeLabel}</p>
+          </div>
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -156,7 +159,7 @@ const VirtualCardDetailsModal: React.FC<VirtualCardDetailsModalProps> = ({
                     [
                       ["details", "Card Details"],
                       ["billing", "Billing Address"],
-                      ["limit", "Card Limit"],
+                      ["limit", "Spend controls"],
                     ] as const
                   ).map(([k, label]) => (
                     <button
@@ -217,64 +220,28 @@ const VirtualCardDetailsModal: React.FC<VirtualCardDetailsModalProps> = ({
 
               {mainTab === "billing" && (
                 <div className="mt-5">
-                  <div className="mb-3 flex gap-6 border-b border-gray-200">
-                    {(
-                      [
-                        ["ng", "Nigeria Address"],
-                        ["us", "US Address"],
-                      ] as const
-                    ).map(([k, label]) => (
-                      <button
-                        key={k}
-                        type="button"
-                        onClick={() => setBillingSub(k)}
-                        className={`relative pb-2 text-sm font-semibold ${
-                          billingSub === k ? "text-gray-900" : "text-gray-500"
-                        }`}
-                      >
-                        {label}
-                        {billingSub === k && (
-                          <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full" style={{ backgroundColor: GREEN }} />
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                  {billingSub === "ng" && (
+                  <p className="mb-3 text-xs text-gray-500">
+                    Program billing on file for this {schemeLabel} card (issuer format).
+                  </p>
+                  {isVisa ? (
                     <div className="space-y-2 rounded-xl bg-gray-100/90 p-3">
-                      <DetailCopyRow label="Street Name" value={streetNg || "—"} onCopy={() => copy("s1", streetNg)} />
-                      <DetailCopyRow label="City Name" value={cityNg || "—"} onCopy={() => copy("c1", cityNg)} />
-                      <DetailCopyRow label="State Name" value={stateNg || "—"} onCopy={() => copy("st1", stateNg)} />
-                      <DetailCopyRow label="Country Name" value={countryNg || "—"} onCopy={() => copy("co1", countryNg)} />
-                      <DetailCopyRow label="Postal Code" value={postalNg || "—"} onCopy={() => copy("p1", postalNg)} />
+                      <DetailCopyRow label="Street" value={streetNg || "—"} onCopy={() => copy("s1", streetNg)} />
+                      <DetailCopyRow label="City" value={cityNg || "—"} onCopy={() => copy("c1", cityNg)} />
+                      <DetailCopyRow label="State" value={stateNg || "—"} onCopy={() => copy("st1", stateNg)} />
+                      <DetailCopyRow label="Country" value={countryNg || "—"} onCopy={() => copy("co1", countryNg)} />
                     </div>
-                  )}
-                  {billingSub === "us" && (
+                  ) : (
                     <div className="space-y-2 rounded-xl bg-gray-100/90 p-3">
+                      <DetailCopyRow label="Street" value={streetNg || "—"} onCopy={() => copy("s1", streetNg)} />
+                      <DetailCopyRow label="City" value={cityNg || "—"} onCopy={() => copy("c1", cityNg)} />
+                      <DetailCopyRow label="State / County" value={stateNg || "—"} onCopy={() => copy("st1", stateNg)} />
                       <DetailCopyRow
-                        label="Street Name"
-                        value={usAddr?.street ?? "—"}
-                        onCopy={() => copy("us1", usAddr?.street ?? "")}
+                        label="Address"
+                        value={mastercardAddressLine || "—"}
+                        onCopy={() => copy("addr1", mastercardAddressLine)}
                       />
-                      <DetailCopyRow
-                        label="City Name"
-                        value={usAddr?.city ?? "—"}
-                        onCopy={() => copy("us2", usAddr?.city ?? "")}
-                      />
-                      <DetailCopyRow
-                        label="State Name"
-                        value={usAddr?.state ?? "—"}
-                        onCopy={() => copy("us3", usAddr?.state ?? "")}
-                      />
-                      <DetailCopyRow
-                        label="Country Name"
-                        value={usAddr?.country ?? "—"}
-                        onCopy={() => copy("us4", usAddr?.country ?? "")}
-                      />
-                      <DetailCopyRow
-                        label="Postal Code"
-                        value={usAddr?.postal_code ?? "—"}
-                        onCopy={() => copy("us5", usAddr?.postal_code ?? "")}
-                      />
+                      <DetailCopyRow label="Postcode" value={postalNg || "—"} onCopy={() => copy("p1", postalNg)} />
+                      <DetailCopyRow label="Country" value={countryNg || "—"} onCopy={() => copy("co1", countryNg)} />
                     </div>
                   )}
                 </div>
@@ -282,44 +249,53 @@ const VirtualCardDetailsModal: React.FC<VirtualCardDetailsModalProps> = ({
 
               {mainTab === "limit" && (
                 <div className="mt-5 space-y-4">
-                  <section className="rounded-xl border border-gray-200 overflow-hidden">
-                    <div className="px-4 py-2 text-sm font-bold text-white" style={{ backgroundColor: GREEN }}>
-                      Daily Limit
-                    </div>
-                    <div className="space-y-2 bg-gray-50 px-4 py-3 text-sm">
-                      <div className="flex justify-between gap-4">
-                        <span className="text-gray-500">Spending Limit</span>
-                        <span className="font-semibold text-gray-900">
-                          {card.daily_spending_limit != null ? `$${Number(card.daily_spending_limit).toLocaleString()}` : "—"}
-                        </span>
-                      </div>
-                      <div className="flex justify-between gap-4">
-                        <span className="text-gray-500">Card Transactions</span>
-                        <span className="font-semibold text-gray-900">
-                          {card.daily_transaction_limit != null ? String(card.daily_transaction_limit) : "—"}
-                        </span>
-                      </div>
-                    </div>
-                  </section>
-                  <section className="rounded-xl border border-gray-200 overflow-hidden">
-                    <div className="px-4 py-2 text-sm font-bold text-white" style={{ backgroundColor: GREEN }}>
-                      Monthly Limit
-                    </div>
-                    <div className="space-y-2 bg-gray-50 px-4 py-3 text-sm">
-                      <div className="flex justify-between gap-4">
-                        <span className="text-gray-500">Spending Limit</span>
-                        <span className="font-semibold text-gray-900">
-                          {card.monthly_spending_limit != null ? `$${Number(card.monthly_spending_limit).toLocaleString()}` : "—"}
-                        </span>
-                      </div>
-                      <div className="flex justify-between gap-4">
-                        <span className="text-gray-500">Card Transactions</span>
-                        <span className="font-semibold text-gray-900">
-                          {card.monthly_transaction_limit != null ? String(card.monthly_transaction_limit) : "—"}
-                        </span>
-                      </div>
-                    </div>
-                  </section>
+                  <p className="text-sm text-gray-600">
+                    Spending caps are issuer <strong>spend controls</strong> (Pagocards), not local database fields.
+                    End users manage them from the mobile app; this panel shows any rows returned on the last card
+                    details sync if the issuer includes them in the payload.
+                  </p>
+                  {(() => {
+                    const rows = spendControlsFromProviderPayload(card.provider_payload);
+                    if (rows.length === 0) {
+                      return (
+                        <p className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-500">
+                          No spend control rows detected in cached provider payload.
+                        </p>
+                      );
+                    }
+                    return rows.map((row, i) => (
+                      <section
+                        key={String(row.control_id ?? row.description ?? i)}
+                        className="overflow-hidden rounded-xl border border-gray-200"
+                      >
+                        <div className="px-4 py-2 text-sm font-bold text-white" style={{ backgroundColor: GREEN }}>
+                          {row.description || "Spend control"}
+                        </div>
+                        <div className="space-y-2 bg-gray-50 px-4 py-3 text-sm">
+                          <div className="flex justify-between gap-4">
+                            <span className="text-gray-500">Period</span>
+                            <span className="font-semibold text-gray-900">{row.period || "—"}</span>
+                          </div>
+                          <div className="flex justify-between gap-4">
+                            <span className="text-gray-500">Type</span>
+                            <span className="font-semibold text-gray-900">{row.type || "—"}</span>
+                          </div>
+                          <div className="flex justify-between gap-4">
+                            <span className="text-gray-500">Limit</span>
+                            <span className="font-semibold text-gray-900">{row.limitDisplay}</span>
+                          </div>
+                          {row.control_id ? (
+                            <div className="flex justify-between gap-4">
+                              <span className="text-gray-500">Control ID</span>
+                              <span className="max-w-[60%] break-all text-right font-mono text-xs font-semibold text-gray-900">
+                                {row.control_id}
+                              </span>
+                            </div>
+                          ) : null}
+                        </div>
+                      </section>
+                    ));
+                  })()}
                 </div>
               )}
 
@@ -331,6 +307,63 @@ const VirtualCardDetailsModal: React.FC<VirtualCardDetailsModalProps> = ({
     </div>
   );
 };
+
+type SpendControlRowUi = {
+  control_id: string;
+  description: string;
+  period: string;
+  type: string;
+  limitDisplay: string;
+};
+
+function spendControlsFromProviderPayload(payload: unknown): SpendControlRowUi[] {
+  if (!payload || typeof payload !== "object") return [];
+  const root = payload as Record<string, unknown>;
+  const data = (root.data as Record<string, unknown> | undefined) ?? root;
+  const keys = [
+    "spendControls",
+    "spendcontrols",
+    "spend_controls",
+    "controls",
+    "controlList",
+    "controllist",
+    "spendingControls",
+    "spending_controls",
+  ];
+  let raw: unknown[] | null = null;
+  for (const k of keys) {
+    const v = data[k];
+    if (Array.isArray(v)) {
+      raw = v;
+      break;
+    }
+    const card = data.card as Record<string, unknown> | undefined;
+    if (card && Array.isArray(card[k])) {
+      raw = card[k] as unknown[];
+      break;
+    }
+  }
+  if (!raw) return [];
+
+  const out: SpendControlRowUi[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+    const r = item as Record<string, unknown>;
+    const cid = String(r.controlid ?? r.controlId ?? r.control_id ?? r.id ?? "");
+    const lim = r.limit;
+    let limitDisplay = "—";
+    if (typeof lim === "number") limitDisplay = `$${lim.toLocaleString()}`;
+    else if (lim != null && String(lim) !== "") limitDisplay = String(lim);
+    out.push({
+      control_id: cid,
+      description: String(r.description ?? ""),
+      period: String(r.period ?? ""),
+      type: String(r.type ?? ""),
+      limitDisplay,
+    });
+  }
+  return out;
+}
 
 function DetailCopyRow({
   label,

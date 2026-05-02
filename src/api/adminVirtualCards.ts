@@ -13,6 +13,8 @@ export interface AdminVirtualCardSummary {
   is_frozen: boolean;
   is_active: boolean;
   card_color: string;
+  /** `visa` or `mastercard` from API */
+  card_scheme?: string;
 }
 
 export interface AdminVirtualCardListPayload {

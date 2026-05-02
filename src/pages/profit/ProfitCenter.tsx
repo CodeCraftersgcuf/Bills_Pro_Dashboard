@@ -874,6 +874,7 @@ const ProfitCenter: React.FC = () => {
         "description",
         "type",
         "revenue_kind",
+        "virtual_card_scheme",
         "currency",
         "principal_amount",
         "fee",
@@ -890,6 +891,7 @@ const ProfitCenter: React.FC = () => {
         (r.description ?? "").replace(/\r?\n/g, " "),
         r.type ?? "",
         r.revenue?.revenue_kind ?? "",
+        r.virtual_card_scheme ?? "",
         r.currency ?? "",
         r.amount,
         r.fee,
@@ -1135,6 +1137,15 @@ const ProfitCenter: React.FC = () => {
                         <td className="max-w-[min(100vw,320px)] px-4 py-3">
                           <p className="line-clamp-2 font-medium text-gray-900">{r.description || "—"}</p>
                           <p className="text-xs text-gray-500">{humanizeTransactionSubtype(r)}</p>
+                          {r.virtual_card_scheme ? (
+                            <p className="mt-0.5 text-xs font-semibold uppercase tracking-wide text-indigo-700">
+                              {r.virtual_card_scheme === "visa"
+                                ? "Visa"
+                                : r.virtual_card_scheme === "mastercard"
+                                  ? "Mastercard"
+                                  : r.virtual_card_scheme}
+                            </p>
+                          ) : null}
                         </td>
                         <td className="px-4 py-3 text-gray-800">{r.user?.display_name ?? "—"}</td>
                         <td className="px-4 py-3 font-medium tabular-nums text-gray-900">

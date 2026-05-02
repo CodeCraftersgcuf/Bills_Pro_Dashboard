@@ -12,6 +12,7 @@ import KYC from "./pages/kyc/KYC";
 import VirtualCards from "./pages/virtualCards/VirtualCards";
 import WalletManagement from "./pages/walletManagement/WalletManagement";
 import Rates from "./pages/rates/Rates";
+import VisaVirtualCardRates from "./pages/rates/VisaVirtualCardRates";
 import BillPayments from "./pages/billPayments/BillPayments";
 import MasterWallet from "./pages/masterWallet/MasterWallet";
 import ReceivedCrypto from "./pages/receivedCrypto/ReceivedCrypto";
@@ -22,7 +23,7 @@ import Support from "./pages/support/Support";
 import Notification from "./pages/notification/Notification";
 import Setting from "./pages/setting/Setting";
 import AdminDetail from "./pages/setting/AdminDetail";
-import VirtualCardLegal from "./pages/legal/VirtualCardLegal";
+import AppLegalDocuments from "./pages/legal/AppLegalDocuments";
 
 const App: React.FC = () => {
   return (
@@ -40,9 +41,11 @@ const App: React.FC = () => {
                 <Route path="transaction" element={<Transaction />} />
                 <Route path="kyc" element={<KYC />} />
                 <Route path="virtual-cards" element={<VirtualCards />} />
-                <Route path="legal/virtual-card" element={<VirtualCardLegal />} />
+                <Route path="legal/app-documents" element={<AppLegalDocuments />} />
+                <Route path="legal/virtual-card" element={<Navigate to="/legal/app-documents" replace />} />
                 <Route path="wallet-management" element={<WalletManagement />} />
                 <Route path="rates" element={<Rates />} />
+                <Route path="rates/visa-virtual-card" element={<VisaVirtualCardRates />} />
                 <Route path="bill-payments" element={<BillPayments />} />
                 <Route path="master-wallet" element={<MasterWallet />} />
                 <Route path="received-crypto" element={<ReceivedCrypto />} />

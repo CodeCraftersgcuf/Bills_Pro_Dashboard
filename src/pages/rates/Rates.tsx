@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Pencil, Search, Trash2 } from "lucide-react";
 import {
@@ -49,10 +50,12 @@ function formatNgnDisplay(v: number): string {
   return v.toLocaleString("en-NG", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 }
 
-const Rates: React.FC = () => {
+export type RatesProps = { visaOnly?: boolean };
+
+const Rates: React.FC<RatesProps> = ({ visaOnly = false }) => {
   const qc = useQueryClient();
   const hasToken = Boolean(getAdminToken());
-  const [tab, setTab] = useState<PlatformRateCategory>("fiat");
+  const [tab, setTab] = useState<PlatformRateCategory>(visaOnly ? "virtual_card" : "fiat");
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Record<number, boolean>>({});
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -79,7 +82,11 @@ const Rates: React.FC = () => {
     enabled: hasToken,
   });
 
-  const rows = ratesQ.data?.rates ?? [];
+  const rows = useMemo(() => {
+    const raw = ratesQ.data?.rates ?? [];
+    if (!visaOnly) return raw;
+    return raw.filter((r) => r.service_key === "visa_creation" || r.service_key === "visa_fund");
+  }, [ratesQ.data?.rates, visaOnly]);
 
   const resetForm = () => {
     setEditingId(null);
@@ -104,7 +111,7 @@ const Rates: React.FC = () => {
     setFixedFee(r.fixed_fee_ngn ?? "");
     setPctFee(r.percentage_fee ?? "");
     setMinFee(r.min_fee_ngn ?? "");
-    if (r.category === "virtual_card" && r.service_key === "fund") {
+    if (r.category === "virtual_card" && (r.service_key === "fund" || r.service_key === "visa_fund")) {
       const rate = Number(r.exchange_rate_ngn_per_usd);
       const legacyNgn = Number(r.fixed_fee_ngn);
       if (r.fee_usd != null && r.fee_usd !== "") {
@@ -121,8 +128,8 @@ const Rates: React.FC = () => {
 
   const buildPayload = (): PlatformRatePayload | null => {
     if (!svc.trim()) return null;
-    const isVcCreation = tab === "virtual_card" && svc === "creation";
-    const isVcFund = tab === "virtual_card" && svc === "fund";
+    const isVcCreation = tab === "virtual_card" && (svc === "creation" || svc === "visa_creation");
+    const isVcFund = tab === "virtual_card" && (svc === "fund" || svc === "visa_fund");
     const cryptoFeesUsd = tab === "crypto" && (svc === "deposit" || svc === "withdrawal");
     const cryptoBuySell = tab === "crypto" && (svc === "buy" || svc === "sell");
     const base: PlatformRatePayload = {
@@ -209,20 +216,22 @@ const Rates: React.FC = () => {
   const isCryptoFeesUsd =
     tab === "crypto" && (svc === "deposit" || svc === "withdrawal");
   const isCryptoExchangeOnly = tab === "crypto" && (svc === "buy" || svc === "sell");
-  const isVcFund = tab === "virtual_card" && svc === "fund";
+  const isVcFund = tab === "virtual_card" && (svc === "fund" || svc === "visa_fund");
   const showLegacyFixedNgn =
     !isCryptoFeesUsd &&
     !isCryptoExchangeOnly &&
-    !(tab === "virtual_card" && (svc === "creation" || svc === "fund"));
+    !(tab === "virtual_card" && (svc === "creation" || svc === "fund" || svc === "visa_creation" || svc === "visa_fund"));
   const showStandalonePctFee =
     !isCryptoExchangeOnly &&
-    !(tab === "virtual_card" && svc === "creation") &&
+    !(tab === "virtual_card" && (svc === "creation" || svc === "visa_creation")) &&
     !isCryptoFeesUsd;
 
   return (
     <div className="mx-auto max-w-[1600px] space-y-6 md:space-y-8">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-2xl font-bold text-gray-900 md:text-3xl">Rates</h1>
+        <h1 className="text-2xl font-bold text-gray-900 md:text-3xl">
+          {visaOnly ? "Visa virtual card rates" : "Rates"}
+        </h1>
       </div>
 
       {!hasToken ? (
@@ -231,29 +240,41 @@ const Rates: React.FC = () => {
         </div>
       ) : null}
 
-      <div className="flex flex-wrap gap-2 rounded-2xl bg-[#E8E8E8] p-1.5">
-        {(
-          [
-            ["fiat", "Naira"],
-            ["crypto", "Crypto"],
-            ["virtual_card", "Virtual card"],
-          ] as const
-        ).map(([k, label]) => (
-          <button
-            key={k}
-            type="button"
-            onClick={() => {
-              setTab(k);
-              resetForm();
-            }}
-            className={`rounded-xl px-5 py-2.5 text-sm font-semibold transition-colors ${
-              tab === k ? "bg-[#1B800F] text-white shadow-sm" : "text-gray-700 hover:bg-white/70"
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      {!visaOnly ? (
+        <div className="flex flex-wrap gap-2 rounded-2xl bg-[#E8E8E8] p-1.5">
+          {(
+            [
+              ["fiat", "Naira"],
+              ["crypto", "Crypto"],
+              ["virtual_card", "Virtual card"],
+            ] as const
+          ).map(([k, label]) => (
+            <button
+              key={k}
+              type="button"
+              onClick={() => {
+                setTab(k);
+                resetForm();
+              }}
+              className={`rounded-xl px-5 py-2.5 text-sm font-semibold transition-colors ${
+                tab === k ? "bg-[#1B800F] text-white shadow-sm" : "text-gray-700 hover:bg-white/70"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      ) : (
+        <p className="text-sm text-gray-600">
+          Same Pagocards credentials as Mastercard; only customer-facing Visa fees and NGN/USD rates are configured here.
+          Mastercard fees remain on the main{" "}
+          <Link to="/rates" className="font-semibold text-[#1B800F] underline">
+            Rates
+          </Link>{" "}
+          page
+          under Virtual card.
+        </p>
+      )}
 
       <section className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm md:p-6">
         <h2 className="text-sm font-semibold text-gray-500">{editingId ? "Update rate" : "Add rate"}</h2>
@@ -279,7 +300,10 @@ const Rates: React.FC = () => {
                   </option>
                 ))}
               {tab === "virtual_card" &&
-                metaQ.data?.virtual_card.services.map((s) => (
+                (visaOnly
+                  ? metaQ.data?.virtual_card.services.filter((s) => s.key === "visa_creation" || s.key === "visa_fund")
+                  : metaQ.data?.virtual_card.services
+                )?.map((s) => (
                   <option key={s.key} value={s.key}>
                     {s.label}
                   </option>
@@ -366,7 +390,7 @@ const Rates: React.FC = () => {
             </label>
           ) : null}
 
-          {tab === "virtual_card" && svc === "creation" ? (
+          {tab === "virtual_card" && (svc === "creation" || svc === "visa_creation") ? (
             <label className="flex flex-col gap-1 text-sm md:col-span-2">
               <span className="font-medium text-gray-700">Card creation fee (USD)</span>
               <input
@@ -630,17 +654,19 @@ const Rates: React.FC = () => {
                             : "—"}
                         </td>
                         <td className="px-4 py-3 text-gray-800">
-                          {r.service_key === "creation" && r.fee_usd != null && r.fee_usd !== ""
+                          {(r.service_key === "creation" || r.service_key === "visa_creation") &&
+                          r.fee_usd != null &&
+                          r.fee_usd !== ""
                             ? `$${Number(r.fee_usd).toLocaleString("en-US")}`
                             : "—"}
                         </td>
                         <td className="px-4 py-3 text-gray-800">
-                          {r.fee_usd != null && r.fee_usd !== "" && r.service_key !== "creation" ? (
+                          {r.fee_usd != null && r.fee_usd !== "" && r.service_key !== "creation" && r.service_key !== "visa_creation" ? (
                             <span>
                               <span className="font-medium">
                                 ${Number(r.fee_usd).toLocaleString("en-US")}
                               </span>
-                              {r.service_key === "fund" &&
+                              {(r.service_key === "fund" || r.service_key === "visa_fund") &&
                               r.exchange_rate_ngn_per_usd != null &&
                               r.exchange_rate_ngn_per_usd !== "" ? (
                                 <span className="mt-0.5 block text-xs text-gray-600">
@@ -649,7 +675,8 @@ const Rates: React.FC = () => {
                                 </span>
                               ) : null}
                             </span>
-                          ) : Number(r.fixed_fee_ngn) > 0 && (r.service_key === "fund" || r.service_key === "withdraw") ? (
+                          ) : Number(r.fixed_fee_ngn) > 0 &&
+                            (r.service_key === "fund" || r.service_key === "visa_fund" || r.service_key === "withdraw") ? (
                             `₦${formatNgnDisplay(Number(r.fixed_fee_ngn))} (legacy NGN)`
                           ) : (
                             "—"

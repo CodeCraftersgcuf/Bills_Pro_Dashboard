@@ -17,6 +17,8 @@ export interface UserVirtualCard {
   detailsButtonVariant: "green" | "orange" | "pink";
   /** API `card_color` — tint over shared card background image */
   cardColor?: string;
+  /** From API `card_scheme`: visa | mastercard */
+  cardScheme?: "visa" | "mastercard";
 }
 
 export type VirtualCardTxKind = "deposit" | "withdrawal" | "payment";

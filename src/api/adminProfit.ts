@@ -83,6 +83,8 @@ export interface ProfitTransactionRow {
   revenue?: TransactionRevenueInfo;
   /** Present when the API can match this ledger row to a Rates configuration. */
   rate_from_admin?: PlatformRateSnapshot | null;
+  /** For virtual card ledger rows: `visa` or `mastercard` when stored on the transaction. */
+  virtual_card_scheme?: string | null;
 }
 
 export interface ProfitSummary {
