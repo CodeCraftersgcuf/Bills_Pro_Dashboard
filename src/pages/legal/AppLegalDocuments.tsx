@@ -84,7 +84,10 @@ const AppLegalDocuments: React.FC = () => {
         <h1 className="text-2xl font-bold text-gray-900 md:text-3xl">App legal documents</h1>
         <p className="mt-2 text-sm text-gray-600">
           Edit the text shown in the mobile app (in-app pop-ups). Sign-up copies appear on Login and Register;
-          virtual-card copies appear on Create Card. Public API: <code className="rounded bg-gray-100 px-1">GET /api/legal-documents</code>
+          virtual-card copies appear on Create Card. This page is served at{" "}
+          <code className="rounded bg-gray-100 px-1">/legal/virtual-card</code> and{" "}
+          <code className="rounded bg-gray-100 px-1">/legal/app-documents</code>. Public API:{" "}
+          <code className="rounded bg-gray-100 px-1">GET /api/legal-documents</code>
         </p>
         {saveMessage && (
           <p className="mt-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-800">

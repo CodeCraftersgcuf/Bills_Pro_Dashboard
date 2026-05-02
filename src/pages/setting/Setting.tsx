@@ -10,6 +10,7 @@ import {
   Plus,
   Pencil,
   Trash2,
+  FileText,
 } from "lucide-react";
 import StatCard from "../../components/StatCard";
 import AddAdminModal from "../../components/AddAdminModal";
@@ -142,6 +143,29 @@ const Setting: React.FC = () => {
             value={String(Math.max(0, total - activeCount))}
             hint="Not active"
           />
+        </div>
+
+        <div
+          className="mt-5 flex flex-col gap-3 rounded-2xl border border-emerald-200/80 bg-emerald-50/90 px-5 py-4 md:flex-row md:items-center md:justify-between"
+          style={{ borderLeftWidth: 4, borderLeftColor: GREEN }}
+        >
+          <div className="flex gap-3">
+            <FileText className="mt-0.5 h-6 w-6 shrink-0 text-[#1B800F]" strokeWidth={1.75} />
+            <div>
+              <h3 className="text-base font-semibold text-gray-900">Mobile app — terms & privacy</h3>
+              <p className="mt-1 text-sm text-gray-600">
+                Edit Register / Login footer text and virtual-card legal pop-ups. Syncs to the Bills Pro app via the API.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => navigate("/legal/virtual-card")}
+            className="shrink-0 rounded-full px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-90"
+            style={{ backgroundColor: GREEN }}
+          >
+            Open editor
+          </button>
         </div>
       </section>
       {actionNotice ? (

@@ -33,8 +33,8 @@ export const Sidebar_links: SidebarLinkItem[] = [
   { name: "KYC", link: "/kyc", icon: ShieldCheck, sublinks: [] },
   { name: "Virtual Cards", link: "/virtual-cards", icon: CreditCard, sublinks: [] },
   {
-    name: "App legal documents",
-    link: "/legal/app-documents",
+    name: "Terms & privacy (mobile app)",
+    link: "/legal/virtual-card",
     icon: FileText,
     sublinks: [],
   },

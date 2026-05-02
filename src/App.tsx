@@ -42,7 +42,8 @@ const App: React.FC = () => {
                 <Route path="kyc" element={<KYC />} />
                 <Route path="virtual-cards" element={<VirtualCards />} />
                 <Route path="legal/app-documents" element={<AppLegalDocuments />} />
-                <Route path="legal/virtual-card" element={<Navigate to="/legal/app-documents" replace />} />
+                {/* Same editable page — keeps https://admin…/legal/virtual-card working */}
+                <Route path="legal/virtual-card" element={<AppLegalDocuments />} />
                 <Route path="wallet-management" element={<WalletManagement />} />
                 <Route path="rates" element={<Rates />} />
                 <Route path="rates/visa-virtual-card" element={<VisaVirtualCardRates />} />
