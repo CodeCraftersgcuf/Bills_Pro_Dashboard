@@ -12,6 +12,7 @@ import KYC from "./pages/kyc/KYC";
 import VirtualCards from "./pages/virtualCards/VirtualCards";
 import WalletManagement from "./pages/walletManagement/WalletManagement";
 import Rates from "./pages/rates/Rates";
+import CommissionRates from "./pages/rates/CommissionRates";
 import VisaVirtualCardRates from "./pages/rates/VisaVirtualCardRates";
 import BillPayments from "./pages/billPayments/BillPayments";
 import MasterWallet from "./pages/masterWallet/MasterWallet";
@@ -46,6 +47,7 @@ const App: React.FC = () => {
                 <Route path="legal/virtual-card" element={<AppLegalDocuments />} />
                 <Route path="wallet-management" element={<WalletManagement />} />
                 <Route path="rates" element={<Rates />} />
+                <Route path="rates/commissions" element={<CommissionRates />} />
                 <Route path="rates/visa-virtual-card" element={<VisaVirtualCardRates />} />
                 <Route path="bill-payments" element={<BillPayments />} />
                 <Route path="master-wallet" element={<MasterWallet />} />

@@ -1,17 +1,18 @@
 import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, ChevronLeft, ChevronRight, Eye, EyeOff, Search, X } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, Search, X } from "lucide-react";
 import type { User } from "../data/users";
 import type { UserVirtualCard, VirtualCardTxKind, VirtualCardTxRow } from "../data/userVirtualCards";
 import {
   type AdminVirtualCardSummary,
   type AdminVirtualCardTxRow,
-  adminFundVirtualCard,
   adminUnfreezeVirtualCard,
   fetchAdminVirtualCardTransactions,
   fetchAdminVirtualCardsForUser,
 } from "../api/adminVirtualCards";
+import AdminFundVirtualCardModal from "./AdminFundVirtualCardModal";
 import VirtualCardDetailsModal from "./VirtualCardDetailsModal";
+import type { VirtualCardScheme } from "../api/adminVirtualCards";
 import { virtualCardSurfaceStyle } from "../utils/virtualCardSurface";
 import { humanizeApiLabelOrDash } from "../utils/humanizeApiLabel";
 import { downloadCsv } from "../utils/csvDownload";
@@ -87,6 +88,7 @@ function mapApiTxRow(r: AdminVirtualCardTxRow, userId: string): VirtualCardTxRow
     amount: r.amount,
     status: r.status,
     cardLabel: r.card_label,
+    cardScheme: r.card_scheme === "visa" ? "visa" : r.card_scheme === "mastercard" ? "mastercard" : undefined,
     subType: humanizeApiLabelOrDash(r.sub_type),
     date: r.date,
     kind: r.kind as VirtualCardTxKind,
@@ -118,7 +120,6 @@ const VirtualCardsPanel: React.FC<VirtualCardsPanelProps> = ({ user }) => {
   const qc = useQueryClient();
 
   const [cardStatusFilter, setCardStatusFilter] = useState<CardStatusFilter>("active");
-  const [revealIds, setRevealIds] = useState<Record<string, boolean>>({});
   const [txPill, setTxPill] = useState<TxPill>("all");
   const [txStatus, setTxStatus] = useState("");
   const [cardTxFilter, setCardTxFilter] = useState("");
@@ -127,6 +128,7 @@ const VirtualCardsPanel: React.FC<VirtualCardsPanelProps> = ({ user }) => {
   const [datePreset, setDatePreset] = useState<DatePreset>("all");
   const [detailRow, setDetailRow] = useState<VirtualCardTxRow | null>(null);
   const [detailCardId, setDetailCardId] = useState<number | null>(null);
+  const [fundTarget, setFundTarget] = useState<{ id: number; label: string; scheme: VirtualCardScheme } | null>(null);
   const [fundingNotice, setFundingNotice] = useState<string | null>(null);
   const [selectedTxByKey, setSelectedTxByKey] = useState<Map<string, VirtualCardTxRow>>(() => new Map());
   const [bulkPanel, setBulkPanel] = useState<"bulk" | "export">("bulk");
@@ -273,22 +275,11 @@ const VirtualCardsPanel: React.FC<VirtualCardsPanelProps> = ({ user }) => {
       void qc.invalidateQueries({ queryKey: ["admin", "vc-users-overview"] });
     },
   });
-  const fundMut = useMutation({
-    mutationFn: (cardId: number) =>
-      adminFundVirtualCard(cardId, {
-        amount: 5,
-        payment_wallet_type: "naira_wallet",
-        payment_wallet_currency: "NGN",
-      }),
-    onSuccess: async () => {
-      setFundingNotice("Card funding submitted (USD 5 via Naira wallet).");
-      await qc.invalidateQueries({ queryKey: ["admin", "vcards", user.id] });
-      await qc.invalidateQueries({ queryKey: ["admin", "vctx", user.id] });
-    },
-  });
-
   const cardOptions = useMemo(() => {
-    return filteredCards.map((c) => ({ value: String(c.id), label: c.shortName }));
+    return filteredCards.map((c) => {
+      const schemeTag = c.cardScheme === "visa" ? "Visa" : "MC";
+      return { value: String(c.id), label: `${c.shortName} (${schemeTag})` };
+    });
   }, [filteredCards]);
 
   const scrollCarousel = (dir: -1 | 1) => {
@@ -423,8 +414,7 @@ const VirtualCardsPanel: React.FC<VirtualCardsPanelProps> = ({ user }) => {
             <p className="w-full py-8 text-center text-sm text-gray-500">No cards for this filter.</p>
           ) : (
             filteredCards.map((card) => {
-              const revealed = revealIds[card.id] ?? false;
-              const pan = revealed ? `4532 8899 0144 ${card.lastFour}` : `**** **** **** ${card.lastFour}`;
+              const pan = `**** **** **** ${card.lastFour}`;
               const frozen = card.status === "frozen";
               return (
                 <article
@@ -446,26 +436,22 @@ const VirtualCardsPanel: React.FC<VirtualCardsPanelProps> = ({ user }) => {
                       </p>
                       <span className="shrink-0 text-sm font-bold tracking-tight text-white">Bills Pro</span>
                     </div>
-                    <div className="mt-4 flex items-center gap-2">
-                      <p className="text-2xl font-bold tracking-tight md:text-[1.65rem]">{card.balanceDisplay}</p>
-                      <button
-                        type="button"
-                        onClick={() => setRevealIds((m) => ({ ...m, [card.id]: !revealed }))}
-                        className="rounded-full p-1.5 text-white/80 transition-colors hover:bg-white/10 hover:text-white"
-                        aria-label={revealed ? "Hide card number" : "Show card number"}
-                      >
-                        {revealed ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                      </button>
-                    </div>
+                    <p className="mt-4 text-2xl font-bold tracking-tight md:text-[1.65rem]">{card.balanceDisplay}</p>
                     <p className="mt-3 font-mono text-sm tracking-[0.2em] text-white/90">{pan}</p>
                     <p className="mt-1 text-xs font-medium text-white/75">{user.profileFullName}</p>
                     <div className="mt-auto flex justify-end pt-4">
                       <div className="flex gap-2">
                         <button
                           type="button"
-                          onClick={() => /^\d+$/.test(card.id) && fundMut.mutate(Number(card.id))}
-                          disabled={fundMut.isPending}
-                          className="rounded-full bg-white/15 px-4 py-2 text-xs font-bold text-white shadow-md transition-opacity hover:opacity-95 disabled:opacity-60"
+                          onClick={() => {
+                            if (!/^\d+$/.test(card.id)) return;
+                            setFundTarget({
+                              id: Number(card.id),
+                              label: card.shortName,
+                              scheme: card.cardScheme ?? "mastercard",
+                            });
+                          }}
+                          className="rounded-full bg-white/15 px-4 py-2 text-xs font-bold text-white shadow-md transition-opacity hover:opacity-95"
                         >
                           Fund
                         </button>
@@ -671,7 +657,14 @@ const VirtualCardsPanel: React.FC<VirtualCardsPanelProps> = ({ user }) => {
                         {row.status}
                       </span>
                     </td>
-                    <td className="px-5 py-4 text-gray-700">{row.cardLabel}</td>
+                    <td className="px-5 py-4 text-gray-700">
+                      {row.cardLabel}
+                      {row.cardScheme ? (
+                        <span className="mt-0.5 block text-[10px] font-semibold uppercase text-gray-500">
+                          {row.cardScheme === "visa" ? "Visa" : "Mastercard"}
+                        </span>
+                      ) : null}
+                    </td>
                     <td className="px-5 py-4 text-gray-700">{row.subType}</td>
                     <td className="px-5 py-4 text-gray-700">{row.date}</td>
                     <td className="px-5 py-4">
@@ -757,6 +750,23 @@ const VirtualCardsPanel: React.FC<VirtualCardsPanelProps> = ({ user }) => {
           </div>
         </div>
       ) : null}
+
+      <AdminFundVirtualCardModal
+        open={fundTarget != null}
+        cardId={fundTarget?.id ?? null}
+        cardLabel={fundTarget?.label ?? ""}
+        scheme={fundTarget?.scheme ?? "mastercard"}
+        onClose={() => setFundTarget(null)}
+        onFunded={(msg) => {
+          setFundingNotice(msg);
+          void qc.invalidateQueries({ queryKey: ["admin", "vcards", user.id] });
+          void qc.invalidateQueries({ queryKey: ["admin", "vctx", user.id] });
+          if (fundTarget?.id) {
+            void qc.invalidateQueries({ queryKey: ["admin", "virtual-card", fundTarget.id] });
+            void qc.invalidateQueries({ queryKey: ["admin", "virtual-card", fundTarget.id, "transactions"] });
+          }
+        }}
+      />
 
       <VirtualCardDetailsModal
         open={detailCardId != null}

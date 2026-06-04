@@ -1,12 +1,26 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Copy, Eye, EyeOff, X } from "lucide-react";
 import {
   adminFreezeVirtualCard,
   adminUnfreezeVirtualCard,
   fetchAdminVirtualCard,
+  fetchAdminVirtualCardTransactionsByCard,
 } from "../api/adminVirtualCards";
+import VirtualCardTransactionReceipt from "./VirtualCardTransactionReceipt";
+import {
+  pagocardsBillingSchemeFromCardType,
+  pagocardsFixedBillingAddress,
+} from "../constants/pagocardsBillingAddress";
 import { virtualCardSurfaceStyle } from "../utils/virtualCardSurface";
+import {
+  type AdminVirtualCardTxRaw,
+  formatVcTxDate,
+  getVirtualCardTxAmountDisplay,
+  normalizeAdminVirtualCardTxList,
+  vcTxSubtitle,
+  vcTxTitle,
+} from "../utils/virtualCardTxDisplay";
 
 const GREEN = "#1B800F";
 const RED_FREEZE = "#DC2626";
@@ -24,7 +38,7 @@ export interface VirtualCardDetailsModalProps {
   userId: string;
 }
 
-type MainTab = "details" | "billing" | "limit";
+type MainTab = "details" | "billing" | "limit" | "transactions";
 
 const VirtualCardDetailsModal: React.FC<VirtualCardDetailsModalProps> = ({
   open,
@@ -37,19 +51,50 @@ const VirtualCardDetailsModal: React.FC<VirtualCardDetailsModalProps> = ({
   const [mainTab, setMainTab] = useState<MainTab>("details");
   const [reveal, setReveal] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
+  const [selectedTx, setSelectedTx] = useState<AdminVirtualCardTxRaw | null>(null);
 
   const q = useQuery({
     queryKey: ["admin", "virtual-card", cardId],
     queryFn: () => fetchAdminVirtualCard(cardId!),
     enabled: open && cardId != null,
+    staleTime: 0,
+    refetchOnMount: "always",
   });
+
+  const txQ = useQuery({
+    queryKey: ["admin", "virtual-card", cardId, "transactions"],
+    queryFn: () => fetchAdminVirtualCardTransactionsByCard(cardId!, { limit: 50 }),
+    enabled: open && cardId != null,
+    staleTime: 0,
+    refetchOnMount: "always",
+  });
+
+  const txItems = useMemo(
+    () => normalizeAdminVirtualCardTxList(txQ.data),
+    [txQ.data]
+  );
 
   useEffect(() => {
     if (!open) {
       setMainTab("details");
       setReveal(false);
+      setSelectedTx(null);
     }
   }, [open]);
+
+  const cardTypeLoaded = String(q.data?.card_type ?? "").toLowerCase();
+
+  useEffect(() => {
+    if (cardTypeLoaded === "visa" && mainTab === "limit") {
+      setMainTab("details");
+    }
+  }, [cardTypeLoaded, mainTab]);
+
+  useEffect(() => {
+    if (!open || !q.isSuccess || cardId == null) return;
+    void qc.invalidateQueries({ queryKey: ["admin", "vcards", userId] });
+    void qc.invalidateQueries({ queryKey: ["admin", "vctx", userId] });
+  }, [open, q.isSuccess, cardId, userId, qc]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -72,6 +117,7 @@ const VirtualCardDetailsModal: React.FC<VirtualCardDetailsModalProps> = ({
       await qc.invalidateQueries({ queryKey: ["admin", "vc-summary"] });
       await qc.invalidateQueries({ queryKey: ["admin", "vc-users-overview"] });
       await qc.invalidateQueries({ queryKey: ["admin", "virtual-card", cardId] });
+      await qc.invalidateQueries({ queryKey: ["admin", "virtual-card", cardId, "transactions"] });
       await q.refetch();
     },
   });
@@ -100,15 +146,16 @@ const VirtualCardDetailsModal: React.FC<VirtualCardDetailsModalProps> = ({
   const schemeLabel = schemeRaw === "visa" ? "Visa" : "Mastercard";
   const isFrozen = Boolean(card?.is_frozen);
 
-  const streetNg = String(card?.billing_address_street ?? "");
-  const cityNg = String(card?.billing_address_city ?? "");
-  const stateNg = String(card?.billing_address_state ?? "");
-  const countryNg = String(card?.billing_address_country ?? "");
-  const postalNg = String(card?.billing_address_postal_code ?? "");
+  const billingScheme = pagocardsBillingSchemeFromCardType(card?.card_type);
+  const billing = pagocardsFixedBillingAddress(billingScheme);
+  const streetNg = billing.billing_address_street;
+  const cityNg = billing.billing_address_city;
+  const stateNg = billing.billing_address_state;
+  const countryNg = billing.billing_address_country;
+  const postalNg = billing.billing_address_postal_code;
 
   const isVisa = schemeRaw === "visa";
-  const mastercardAddressLine =
-    streetNg && cityNg && postalNg ? `${streetNg}, ${cityNg}, ${postalNg}` : "";
+  const mastercardAddressLine = `${streetNg}, ${cityNg}, ${postalNg}`;
 
   return (
     <div className="fixed inset-0 z-[270] flex items-center justify-center p-4 sm:p-6" role="presentation">
@@ -116,7 +163,9 @@ const VirtualCardDetailsModal: React.FC<VirtualCardDetailsModalProps> = ({
       <div
         role="dialog"
         aria-modal="true"
-        className="relative z-[271] flex max-h-[min(92vh,800px)] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+        className={`relative z-[271] flex max-h-[min(92vh,800px)] w-full flex-col overflow-hidden rounded-2xl bg-white shadow-2xl ${
+          mainTab === "transactions" ? "max-w-2xl" : "max-w-lg"
+        }`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex shrink-0 items-start justify-between gap-3 border-b border-gray-100 px-5 py-4">
@@ -146,7 +195,9 @@ const VirtualCardDetailsModal: React.FC<VirtualCardDetailsModalProps> = ({
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-6 pt-4">
-          {q.isLoading && <p className="text-sm text-gray-500">Loading card…</p>}
+          {q.isLoading && (
+            <p className="text-sm text-gray-500">Syncing card from issuer (balance, PAN, transactions)…</p>
+          )}
           {q.isError && (
             <p className="text-sm text-red-600">{(q.error as Error)?.message ?? "Could not load card."}</p>
           )}
@@ -158,8 +209,9 @@ const VirtualCardDetailsModal: React.FC<VirtualCardDetailsModalProps> = ({
                   {(
                     [
                       ["details", "Card Details"],
+                      ["transactions", "Transactions"],
                       ["billing", "Billing Address"],
-                      ["limit", "Spend controls"],
+                      ...(!isVisa ? ([["limit", "Spend controls"]] as const) : []),
                     ] as const
                   ).map(([k, label]) => (
                     <button
@@ -201,7 +253,7 @@ const VirtualCardDetailsModal: React.FC<VirtualCardDetailsModalProps> = ({
                     <p className="relative mt-3 font-mono text-sm tracking-wider text-emerald-300">{displayPan}</p>
                     <div className="relative mt-2 flex items-end justify-between">
                       <span className="text-sm font-medium text-white/95">{holderName}</span>
-                      <span className="text-[10px] font-bold text-white/80">Mastercard</span>
+                      <span className="text-[10px] font-bold text-white/80">{schemeLabel}</span>
                     </div>
                   </div>
 
@@ -218,6 +270,56 @@ const VirtualCardDetailsModal: React.FC<VirtualCardDetailsModalProps> = ({
                 </div>
               )}
 
+              {mainTab === "transactions" && (
+                <div className="mt-5">
+                  {selectedTx ? (
+                    <VirtualCardTransactionReceipt tx={selectedTx} onClose={() => setSelectedTx(null)} />
+                  ) : (
+                    <>
+                      <p className="mb-3 text-xs text-gray-500">
+                        Live feed from Pagocards (same sync as the mobile app). Balance on the Card Details tab
+                        is refreshed when you open this dialog.
+                      </p>
+                      {txQ.isLoading ? (
+                        <p className="text-sm text-gray-500">Loading transactions…</p>
+                      ) : txQ.isError ? (
+                        <p className="text-sm text-red-600">
+                          {(txQ.error as Error)?.message ?? "Could not load transactions."}
+                        </p>
+                      ) : txItems.length === 0 ? (
+                        <p className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-6 text-center text-sm text-gray-500">
+                          No transactions yet for this card.
+                        </p>
+                      ) : (
+                        <ul className="max-h-[min(50vh,420px)] space-y-2 overflow-y-auto pr-1">
+                          {txItems.map((tx, i) => {
+                            const key = String(tx.id ?? tx.reference ?? i);
+                            return (
+                              <li key={key}>
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedTx(tx)}
+                                  className="flex w-full items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 text-left shadow-sm transition-colors hover:border-[#1B800F]/30 hover:bg-gray-50"
+                                >
+                                  <div className="min-w-0 flex-1">
+                                    <p className="truncate text-sm font-semibold text-gray-900">{vcTxTitle(tx)}</p>
+                                    <p className="truncate text-xs text-gray-500">{vcTxSubtitle(tx)}</p>
+                                    <p className="mt-0.5 text-[11px] text-gray-400">{formatVcTxDate(tx.created_at)}</p>
+                                  </div>
+                                  <span className="shrink-0 text-sm font-bold text-gray-900">
+                                    {getVirtualCardTxAmountDisplay(tx)}
+                                  </span>
+                                </button>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+
               {mainTab === "billing" && (
                 <div className="mt-5">
                   <p className="mb-3 text-xs text-gray-500">
@@ -225,10 +327,11 @@ const VirtualCardDetailsModal: React.FC<VirtualCardDetailsModalProps> = ({
                   </p>
                   {isVisa ? (
                     <div className="space-y-2 rounded-xl bg-gray-100/90 p-3">
-                      <DetailCopyRow label="Street" value={streetNg || "—"} onCopy={() => copy("s1", streetNg)} />
-                      <DetailCopyRow label="City" value={cityNg || "—"} onCopy={() => copy("c1", cityNg)} />
-                      <DetailCopyRow label="State" value={stateNg || "—"} onCopy={() => copy("st1", stateNg)} />
-                      <DetailCopyRow label="Country" value={countryNg || "—"} onCopy={() => copy("co1", countryNg)} />
+                      <DetailCopyRow label="Street" value={streetNg} onCopy={() => copy("s1", streetNg)} />
+                      <DetailCopyRow label="City" value={cityNg} onCopy={() => copy("c1", cityNg)} />
+                      <DetailCopyRow label="State" value={stateNg} onCopy={() => copy("st1", stateNg)} />
+                      <DetailCopyRow label="ZIP / Postal code" value={postalNg} onCopy={() => copy("z1", postalNg)} />
+                      <DetailCopyRow label="Country" value={countryNg} onCopy={() => copy("co1", countryNg)} />
                     </div>
                   ) : (
                     <div className="space-y-2 rounded-xl bg-gray-100/90 p-3">
@@ -249,12 +352,19 @@ const VirtualCardDetailsModal: React.FC<VirtualCardDetailsModalProps> = ({
 
               {mainTab === "limit" && (
                 <div className="mt-5 space-y-4">
+                  {isVisa ? (
+                    <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                      Spend controls are available for <strong>Mastercard</strong> virtual cards only. Visa cards use
+                      Pagocards Visa APIs and do not expose spend-control management in the app or admin panel.
+                    </p>
+                  ) : (
                   <p className="text-sm text-gray-600">
                     Spending caps are issuer <strong>spend controls</strong> (Pagocards), not local database fields.
                     End users manage them from the mobile app; this panel shows any rows returned on the last card
                     details sync if the issuer includes them in the payload.
                   </p>
-                  {(() => {
+                  )}
+                  {!isVisa && (() => {
                     const rows = spendControlsFromProviderPayload(card.provider_payload);
                     if (rows.length === 0) {
                       return (

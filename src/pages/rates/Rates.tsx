@@ -50,6 +50,14 @@ function formatNgnDisplay(v: number): string {
   return v.toLocaleString("en-NG", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 }
 
+function formatMarginPreview(r: PlatformRateRow): string {
+  const m = r.margin_preview;
+  if (!m) return "—";
+  if (m.estimated_profit_ngn != null) return `₦${formatNgnDisplay(m.estimated_profit_ngn)}`;
+  if (m.estimated_profit_usd != null) return `$${m.estimated_profit_usd.toFixed(2)}`;
+  return "—";
+}
+
 export type RatesProps = { visaOnly?: boolean };
 
 const Rates: React.FC<RatesProps> = ({ visaOnly = false }) => {
@@ -69,6 +77,11 @@ const Rates: React.FC<RatesProps> = ({ visaOnly = false }) => {
   const [pctFee, setPctFee] = useState("");
   const [minFee, setMinFee] = useState("");
   const [feeUsd, setFeeUsd] = useState("");
+  const [providerCostNgn, setProviderCostNgn] = useState("");
+  const [providerCostUsd, setProviderCostUsd] = useState("");
+  const [providerPct, setProviderPct] = useState("");
+  const [providerPctCap, setProviderPctCap] = useState("");
+  const [displayLabel, setDisplayLabel] = useState("");
 
   const metaQ = useQuery({
     queryKey: ["admin", "platform-rates-meta"],
@@ -99,6 +112,11 @@ const Rates: React.FC<RatesProps> = ({ visaOnly = false }) => {
     setPctFee("");
     setMinFee("");
     setFeeUsd("");
+    setProviderCostNgn("");
+    setProviderCostUsd("");
+    setProviderPct("");
+    setProviderPctCap("");
+    setDisplayLabel("");
   };
 
   const loadRow = (r: PlatformRateRow) => {
@@ -124,6 +142,11 @@ const Rates: React.FC<RatesProps> = ({ visaOnly = false }) => {
     } else {
       setFeeUsd(r.fee_usd ?? "");
     }
+    setProviderCostNgn(r.provider_cost_ngn ?? "");
+    setProviderCostUsd(r.provider_cost_usd ?? "");
+    setProviderPct(r.provider_pct ?? "");
+    setProviderPctCap(r.provider_pct_cap_ngn ?? "");
+    setDisplayLabel(r.display_label ?? "");
   };
 
   const buildPayload = (): PlatformRatePayload | null => {
@@ -144,6 +167,11 @@ const Rates: React.FC<RatesProps> = ({ visaOnly = false }) => {
       percentage_fee: isVcCreation || cryptoBuySell ? null : numOrNull(pctFee),
       min_fee_ngn: tab === "fiat" && svc === "bill_payment" ? numOrNull(minFee) : null,
       fee_usd: isVcCreation || cryptoFeesUsd || isVcFund ? numOrNull(feeUsd) : undefined,
+      provider_cost_ngn: numOrNull(providerCostNgn),
+      provider_cost_usd: numOrNull(providerCostUsd),
+      provider_pct: numOrNull(providerPct),
+      provider_pct_cap_ngn: numOrNull(providerPctCap),
+      display_label: displayLabel.trim() || null,
     };
     return base;
   };
@@ -232,6 +260,14 @@ const Rates: React.FC<RatesProps> = ({ visaOnly = false }) => {
         <h1 className="text-2xl font-bold text-gray-900 md:text-3xl">
           {visaOnly ? "Visa virtual card rates" : "Rates"}
         </h1>
+        {!visaOnly ? (
+          <Link
+            to="/rates/commissions"
+            className="text-sm font-semibold text-[#1B800F] hover:underline"
+          >
+            Commission tables (airtime / betting) →
+          </Link>
+        ) : null}
       </div>
 
       {!hasToken ? (
@@ -488,6 +524,51 @@ const Rates: React.FC<RatesProps> = ({ visaOnly = false }) => {
               />
             </label>
           ) : null}
+
+          <p className="text-sm font-semibold text-gray-800 md:col-span-2">Provider cost (COGS) & catalog</p>
+          <label className="flex flex-col gap-1 text-sm md:col-span-2">
+            <span className="font-medium text-gray-700">Display label (pricing catalog)</span>
+            <input
+              value={displayLabel}
+              onChange={(e) => setDisplayLabel(e.target.value)}
+              placeholder="e.g. Bank Transfer"
+              className="rounded-xl border border-gray-200 px-3 py-2.5 text-gray-900"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="font-medium text-gray-700">Provider cost (NGN)</span>
+            <input
+              value={providerCostNgn}
+              onChange={(e) => setProviderCostNgn(e.target.value)}
+              className="rounded-xl border border-gray-200 px-3 py-2.5 text-gray-900"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="font-medium text-gray-700">Provider cost (USD)</span>
+            <input
+              value={providerCostUsd}
+              onChange={(e) => setProviderCostUsd(e.target.value)}
+              className="rounded-xl border border-gray-200 px-3 py-2.5 text-gray-900"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="font-medium text-gray-700">Provider cost (%)</span>
+            <input
+              value={providerPct}
+              onChange={(e) => setProviderPct(e.target.value)}
+              placeholder="e.g. 0.7 for deposit"
+              className="rounded-xl border border-gray-200 px-3 py-2.5 text-gray-900"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="font-medium text-gray-700">Provider % cap (NGN)</span>
+            <input
+              value={providerPctCap}
+              onChange={(e) => setProviderPctCap(e.target.value)}
+              placeholder="e.g. 700"
+              className="rounded-xl border border-gray-200 px-3 py-2.5 text-gray-900"
+            />
+          </label>
         </div>
 
         <div className="mt-5 flex flex-wrap items-center gap-3">
@@ -577,6 +658,7 @@ const Rates: React.FC<RatesProps> = ({ visaOnly = false }) => {
                     <th className="px-4 py-3 font-semibold text-gray-700">Commission</th>
                   </>
                 )}
+                <th className="px-4 py-3 font-semibold text-gray-700">Est. profit</th>
                 <th className="px-4 py-3 font-semibold text-gray-700">Date</th>
                 <th className="px-4 py-3 font-semibold text-gray-700">Action</th>
               </tr>
@@ -687,6 +769,7 @@ const Rates: React.FC<RatesProps> = ({ visaOnly = false }) => {
                         </td>
                       </>
                     )}
+                    <td className="px-4 py-3 font-semibold text-emerald-800">{formatMarginPreview(r)}</td>
                     <td className="px-4 py-3 whitespace-nowrap text-gray-700">{formatDisplayDate(r.updated_at)}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">

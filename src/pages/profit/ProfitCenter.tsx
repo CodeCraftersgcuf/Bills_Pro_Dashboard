@@ -14,6 +14,7 @@ import {
   X,
 } from "lucide-react";
 import {
+  fetchPricingCatalog,
   fetchProfitSettings,
   fetchProfitTransactions,
   updateProfitSetting,
@@ -46,7 +47,7 @@ const ACTION_GREEN = "#34D334";
 const TAB_ACTIVE = "bg-[#1B800F] text-white shadow-sm";
 const TAB_IDLE = "bg-[#E8E8E8] text-gray-800 hover:bg-[#DDDDDD]";
 
-type MainTab = "margin" | "activity";
+type MainTab = "catalog" | "margin" | "activity";
 type MarginBucket = "fiat" | "crypto" | "vc" | "other";
 
 const MARGIN_BUCKET_KEYS: Record<MarginBucket, string[]> = {
@@ -291,6 +292,58 @@ function RatesReferencePanel({ category }: { category: PlatformRateCategory }) {
         </div>
       ) : null}
     </div>
+  );
+}
+
+function PricingCatalogPanel() {
+  const hasToken = Boolean(getAdminToken());
+  const catalogQ = useQuery({
+    queryKey: ["admin", "profit-catalog"],
+    queryFn: fetchPricingCatalog,
+    enabled: hasToken,
+  });
+
+  const rows = catalogQ.data ?? [];
+
+  return (
+    <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+      <div className="border-b border-gray-100 px-4 py-4 md:px-6" style={{ backgroundColor: HEADER_GREEN }}>
+        <h2 className="text-lg font-semibold text-white">Pricing catalog (PDF model)</h2>
+        <p className="mt-1 text-sm text-white/90">Provider cost · Billspro charge · Estimated profit</p>
+      </div>
+      <div className="overflow-x-auto">
+        {catalogQ.isLoading ? (
+          <p className="p-6 text-sm text-gray-500">Loading catalog…</p>
+        ) : (
+          <table className="w-full min-w-[800px] text-left text-sm">
+            <thead>
+              <tr className="bg-gray-100 text-gray-700">
+                <th className="px-4 py-3 font-semibold">Service</th>
+                <th className="px-4 py-3 font-semibold">Provider cost</th>
+                <th className="px-4 py-3 font-semibold">Billspro charge</th>
+                <th className="px-4 py-3 font-semibold">Est. profit</th>
+                <th className="px-4 py-3 font-semibold">Edit</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r, i) => (
+                <tr key={`${r.label}-${i}`} style={{ backgroundColor: i % 2 === 0 ? ROW_A : ROW_B }}>
+                  <td className="px-4 py-3 font-medium text-gray-900">{r.label}</td>
+                  <td className="px-4 py-3 text-gray-700">{r.provider_cost_display}</td>
+                  <td className="px-4 py-3 text-gray-700">{r.billspro_charge_display}</td>
+                  <td className="px-4 py-3 font-semibold text-emerald-800">{r.estimated_profit_display}</td>
+                  <td className="px-4 py-3">
+                    <Link to={r.edit_path} className="text-xs font-semibold text-[#1B800F] hover:underline">
+                      Configure
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -787,7 +840,7 @@ function PaymentBreakdownModal({ row, onClose }: { row: ProfitTransactionRow; on
 
 const ProfitCenter: React.FC = () => {
   const hasToken = Boolean(getAdminToken());
-  const [mainTab, setMainTab] = useState<MainTab>("margin");
+  const [mainTab, setMainTab] = useState<MainTab>("catalog");
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const searchDebounced = useDeferredValue(search);
@@ -909,13 +962,12 @@ const ProfitCenter: React.FC = () => {
   return (
     <div className="mx-auto max-w-[1600px] space-y-8">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 md:text-3xl">Profit center</h1>
+        <h1 className="text-2xl font-bold text-gray-900 md:text-3xl">Pricing &amp; Profit</h1>
         <p className="mt-1 max-w-3xl text-sm text-gray-600">
           <Link to="/rates" className="font-semibold text-[#1B800F] underline underline-offset-2 hover:opacity-90">
             Rates
           </Link>{" "}
-          = what customers pay. <strong>This page</strong> = how much of that is <strong>your profit</strong>. Zeros only mean you have
-          not set profit rules yet.
+          = Billspro charge. Provider cost = COGS. Net margin = charge − cost (FX markup excluded per product policy).
         </p>
       </div>
 
@@ -929,31 +981,52 @@ const ProfitCenter: React.FC = () => {
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
+            onClick={() => setMainTab("catalog")}
+            className={`rounded-full px-5 py-2.5 text-sm font-semibold transition-colors ${mainTab === "catalog" ? TAB_ACTIVE : TAB_IDLE}`}
+          >
+            Pricing catalog
+          </button>
+          <button
+            type="button"
             onClick={() => setMainTab("margin")}
             className={`rounded-full px-5 py-2.5 text-sm font-semibold transition-colors ${mainTab === "margin" ? TAB_ACTIVE : TAB_IDLE}`}
           >
-            1 · Profit settings
+            Margin rules
           </button>
           <button
             type="button"
             onClick={() => setMainTab("activity")}
             className={`rounded-full px-5 py-2.5 text-sm font-semibold transition-colors ${mainTab === "activity" ? TAB_ACTIVE : TAB_IDLE}`}
           >
-            2 · Payments &amp; totals
+            Activity
           </button>
         </div>
       ) : null}
 
-      {mainTab === "margin" || !hasToken ? <ProfitSettingsPanel disabled={!hasToken} /> : null}
+      {mainTab === "catalog" && hasToken ? <PricingCatalogPanel /> : null}
+
+      {mainTab === "margin" || (!hasToken && mainTab !== "catalog") ? <ProfitSettingsPanel disabled={!hasToken} /> : null}
 
       {mainTab === "activity" && hasToken ? (
         <>
           <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
             <SimpleSummaryCard
               icon={PiggyBank}
-              title="Your profit (total)"
-              subtitle="From your profit rules, for this list"
-              value={summary ? fmtNum(summary.sum_total_profit) : "—"}
+              title="Net margin (total)"
+              subtitle="Revenue − provider cost for this list"
+              value={summary ? fmtNum(summary.sum_net_margin ?? summary.sum_total_profit) : "—"}
+            />
+            <SimpleSummaryCard
+              icon={Percent}
+              title="Provider cost"
+              subtitle="Estimated COGS"
+              value={summary ? fmtNum(summary.sum_provider_cost) : "—"}
+            />
+            <SimpleSummaryCard
+              icon={Coins}
+              title="Commission revenue"
+              subtitle="Airtime / data / betting"
+              value={summary ? fmtNum(summary.sum_commission) : "—"}
             />
             <SimpleSummaryCard
               icon={Banknote}
@@ -1162,7 +1235,9 @@ const ProfitCenter: React.FC = () => {
                           })()}
                         </td>
                         <td className="px-4 py-3 font-semibold tabular-nums text-emerald-800">
-                          <span className="break-all">{fmtNum(r.profit.total_profit, profitDisplayCurrency(r))}</span>
+                          <span className="break-all">
+                            {fmtNum(r.profit.net_margin_ngn ?? r.profit.total_profit, profitDisplayCurrency(r))}
+                          </span>
                         </td>
                         <td className="whitespace-nowrap px-4 py-3 text-right">
                           <button

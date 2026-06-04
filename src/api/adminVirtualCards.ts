@@ -28,9 +28,24 @@ export interface AdminVirtualCardTxRow {
   amount: string;
   status: "Successful" | "Pending" | "Failed";
   card_label: string;
+  /** `visa` or `mastercard` */
+  card_scheme?: string;
   sub_type: string;
   date: string;
   kind: "deposit" | "withdrawal" | "payment";
+}
+
+export type VirtualCardScheme = "visa" | "mastercard";
+
+export interface AdminCardFundingEstimate {
+  principal_usd?: number;
+  charge_ngn?: number;
+  charge_usd?: number;
+  load_fee_usd?: number;
+  processing_fee_ngn?: number;
+  exchange_rate_ngn_per_usd?: number;
+  card_funding_fee_usd?: number;
+  billspro_transaction_fee_percent?: number;
 }
 
 export interface LaravelPaginator<T> {
@@ -105,9 +120,42 @@ export async function adminFundVirtualCard(
   return apiPost<Record<string, unknown>>(`/admin/virtual-cards/${cardId}/fund`, body);
 }
 
-/** Full card row for details modal (admin show). */
+/** Scheme-aware funding quote (`fund` vs `visa_fund` rates). */
+export function fetchAdminVirtualCardFundingEstimate(
+  cardId: number,
+  params: {
+    amount: number;
+    payment_wallet_type: "naira_wallet" | "crypto_wallet";
+    payment_wallet_currency?: string;
+  }
+): Promise<AdminCardFundingEstimate> {
+  return apiGet<AdminCardFundingEstimate>(`/admin/virtual-cards/${cardId}/funding-estimate`, {
+    amount: params.amount,
+    payment_wallet_type: params.payment_wallet_type,
+    payment_wallet_currency: params.payment_wallet_currency ?? "NGN",
+  });
+}
+
+/** Full card row for details modal (admin show; refreshes balance/PAN from Pagocards). */
 export async function fetchAdminVirtualCard(cardId: number): Promise<Record<string, unknown>> {
   return apiGet<Record<string, unknown>>(`/admin/virtual-cards/${cardId}`);
+}
+
+/** Per-card transactions (same sync path as mobile GET /virtual-cards/{id}/transactions). */
+export async function fetchAdminVirtualCardTransactionsByCard(
+  cardId: number,
+  params?: { limit?: number }
+): Promise<unknown[]> {
+  const raw = await apiGet<unknown>(`/admin/virtual-cards/${cardId}/transactions`, {
+    limit: params?.limit ?? 50,
+  });
+  if (Array.isArray(raw)) return raw;
+  if (raw && typeof raw === "object") {
+    const d = raw as Record<string, unknown>;
+    if (Array.isArray(d.transactions)) return d.transactions;
+    if (Array.isArray(d.data)) return d.data;
+  }
+  return [];
 }
 
 export interface AdminVirtualCardGlobalSummary {

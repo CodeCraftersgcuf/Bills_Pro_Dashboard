@@ -29,6 +29,7 @@ export interface VirtualCardTxRow {
   amount: string;
   status: "Successful" | "Pending" | "Failed";
   cardLabel: string;
+  cardScheme?: "visa" | "mastercard";
   subType: string;
   date: string;
   kind: VirtualCardTxKind;

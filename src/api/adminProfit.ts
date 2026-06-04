@@ -21,6 +21,8 @@ export interface TransactionRevenueInfo {
   implied_spread_ngn: string | null;
 }
 
+export type MarginMode = "ledger_rule" | "charge_minus_cost" | "commission";
+
 export interface ServiceProfitSettingRow {
   id: number;
   service_key: string;
@@ -28,6 +30,12 @@ export interface ServiceProfitSettingRow {
   fixed_fee: string;
   percentage: string;
   percentage_basis: PercentageBasis;
+  margin_mode?: MarginMode;
+  provider_cost_ngn?: string | null;
+  provider_cost_usd?: string | null;
+  provider_pct?: string | null;
+  provider_pct_cap_ngn?: string | null;
+  linked_rate_slug?: string | null;
   is_active: boolean;
   sort_order: number;
   updated_at: string | null;
@@ -41,13 +49,26 @@ export interface ProfitBreakdown {
   basis: string;
   service_key: string;
   setting_label: string | null;
-  /** When profit is computed on NGN notional (crypto buy/sell), profit amounts are in NGN. */
   profit_currency?: string | null;
-  /**
-   * “Your profit” % from Profit settings (tab 1). Separate from customer fee % in Rates.
-   * Null when no active profit rule applied.
-   */
   admin_profit_percent?: string | null;
+  customer_revenue_ngn?: string;
+  provider_cost_ngn?: string;
+  net_margin_ngn?: string;
+  pricing_source?: string;
+  commission_pct?: string | null;
+}
+
+export interface PricingCatalogRow {
+  source: string;
+  rate_id?: number;
+  slug?: string;
+  category?: string;
+  service_key?: string;
+  label: string;
+  provider_cost_display: string;
+  billspro_charge_display: string;
+  estimated_profit_display: string;
+  edit_path: string;
 }
 
 /** Snapshot of the matching Rates row (fixed + % + min, etc.) for this transaction. */
@@ -96,6 +117,10 @@ export interface ProfitSummary {
   sum_fixed_profit: string;
   sum_percentage_profit: string;
   sum_total_profit: string;
+  sum_net_margin?: string;
+  sum_provider_cost?: string;
+  sum_customer_revenue?: string;
+  sum_commission?: string;
 }
 
 export interface ProfitTransactionsResponse {
@@ -111,8 +136,12 @@ export interface ProfitTransactionsResponse {
   data: ProfitTransactionRow[];
 }
 
+export function fetchPricingCatalog(): Promise<PricingCatalogRow[]> {
+  return apiGet<PricingCatalogRow[]>("/admin/profit/catalog");
+}
+
 export function fetchProfitSettings(): Promise<ServiceProfitSettingRow[]> {
-  return apiGet<ServiceProfitSettingRow[]>("admin/profit/settings");
+  return apiGet<ServiceProfitSettingRow[]>("/admin/profit/settings");
 }
 
 export function updateProfitSetting(
@@ -121,6 +150,12 @@ export function updateProfitSetting(
     fixed_fee: number;
     percentage: number;
     percentage_basis: PercentageBasis;
+    margin_mode?: MarginMode;
+    provider_cost_ngn?: number | null;
+    provider_cost_usd?: number | null;
+    provider_pct?: number | null;
+    provider_pct_cap_ngn?: number | null;
+    linked_rate_slug?: string | null;
     is_active: boolean;
   }
 ): Promise<ServiceProfitSettingRow> {

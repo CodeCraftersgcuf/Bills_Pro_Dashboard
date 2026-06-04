@@ -68,6 +68,7 @@ const TOKEN_ICON: Record<string, string> = {
   USDC: "#2775CA",
   TRX: "#EF0027",
   BNB: "#F3BA2F",
+  BSC: "#F0B90B",
   SOL: "#9945FF",
 };
 

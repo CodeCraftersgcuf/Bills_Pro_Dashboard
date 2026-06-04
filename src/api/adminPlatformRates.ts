@@ -15,6 +15,19 @@ export interface PlatformRateRow {
   min_fee_ngn: string | null;
   /** Virtual card: **creation** = card fee (USD); **fund** = flat processing fee (USD) × rate for Naira loads. */
   fee_usd: string | null;
+  provider_cost_ngn?: string | null;
+  provider_cost_usd?: string | null;
+  provider_pct?: string | null;
+  provider_pct_cap_ngn?: string | null;
+  display_label?: string | null;
+  margin_preview?: {
+    charge_ngn: number;
+    charge_usd: number;
+    provider_cost_ngn: number;
+    provider_cost_usd: number;
+    estimated_profit_ngn: number | null;
+    estimated_profit_usd: number | null;
+  };
   is_active: boolean;
   updated_at: string | null;
   created_at: string | null;
@@ -59,6 +72,11 @@ export type PlatformRatePayload = {
   percentage_fee?: number | null;
   min_fee_ngn?: number | null;
   fee_usd?: number | null;
+  provider_cost_ngn?: number | null;
+  provider_cost_usd?: number | null;
+  provider_pct?: number | null;
+  provider_pct_cap_ngn?: number | null;
+  display_label?: string | null;
   is_active?: boolean;
 };
 
