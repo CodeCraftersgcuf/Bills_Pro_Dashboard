@@ -123,7 +123,7 @@ const KYC: React.FC = () => {
 
   const statsQ = useQuery({
     queryKey: ["admin", "stats"],
-    queryFn: fetchAdminStats,
+    queryFn: () => fetchAdminStats(),
     enabled: hasToken,
   });
   const s = statsQ.data;

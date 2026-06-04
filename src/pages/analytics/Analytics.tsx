@@ -20,7 +20,7 @@ const GREEN = "#1B800F";
 const Analytics: React.FC = () => {
   const statsQ = useQuery({
     queryKey: ["admin", "stats"],
-    queryFn: fetchAdminStats,
+    queryFn: () => fetchAdminStats(),
   });
   const s = statsQ.data;
 

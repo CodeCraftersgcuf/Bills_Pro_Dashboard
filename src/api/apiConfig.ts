@@ -1,4 +1,4 @@
-// API root: either `https://host` or `https://host/api` — httpClient dedupes `api/` in paths.
+// Laravel API root (must include `/api`). Override at build time via VITE_API_BASE_URL.
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://billspro.hmstech.org/api";
 
 export const apiConfig = {

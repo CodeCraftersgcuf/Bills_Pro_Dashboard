@@ -15,9 +15,9 @@ export class ApiError extends Error {
 type JsonSuccess<T> = { success: boolean; message?: string; data: T };
 
 /**
- * Join `API_BASE_URL` with a request path. When the base already ends with `/api`
- * (e.g. `https://host/api`) and the path starts with `api/...`, the extra `api/`
- * is dropped so we call `/api/admin/...` instead of `/api/api/admin/...` (404).
+ * Join `API_BASE_URL` (e.g. `https://billspro.hmstech.org/api`) with a request path.
+ * When the path starts with `api/...`, the duplicate segment is dropped so the final URL
+ * is `…/api/admin/...` not `…/api/api/admin/...`.
  */
 function resolveApiUrl(path: string): string {
   if (path.startsWith("http")) return path;

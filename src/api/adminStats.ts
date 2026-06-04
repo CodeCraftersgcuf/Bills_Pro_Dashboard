@@ -39,7 +39,17 @@ export type AdminDashboardStats = {
   }[];
 };
 
+const STATS_RANGES = ["7d", "30d", "90d", "12m"] as const;
+export type StatsRange = (typeof STATS_RANGES)[number];
+
+function normalizeStatsRange(range: unknown): StatsRange | undefined {
+  return typeof range === "string" && (STATS_RANGES as readonly string[]).includes(range)
+    ? (range as StatsRange)
+    : undefined;
+}
+
 /** Omit `range` for legacy behaviour: all-time transaction count & NGN revenue; chart defaults to last 12 months. */
-export function fetchAdminStats(range?: "7d" | "30d" | "90d" | "12m"): Promise<AdminDashboardStats> {
-  return apiGet<AdminDashboardStats>("api/admin/stats", range != null ? { range } : undefined);
+export function fetchAdminStats(range?: StatsRange): Promise<AdminDashboardStats> {
+  const r = normalizeStatsRange(range);
+  return apiGet<AdminDashboardStats>("api/admin/stats", r != null ? { range: r } : undefined);
 }
