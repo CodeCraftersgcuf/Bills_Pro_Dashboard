@@ -26,6 +26,11 @@ function resolveApiUrl(path: string): string {
   if (base.endsWith("/api") && p.startsWith("api/")) {
     p = p.slice(4);
   }
+  // Laravel routes live under /api. When VITE_API_BASE_URL is origin-only (no /api),
+  // paths like `/admin/profit/catalog` must become `/api/admin/...` (same as `api/admin/stats`).
+  if (!base.endsWith("/api") && !p.startsWith("api/")) {
+    p = `api/${p}`;
+  }
   return `${base}/${p}`;
 }
 

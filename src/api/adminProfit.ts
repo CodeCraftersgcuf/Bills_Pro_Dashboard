@@ -137,11 +137,11 @@ export interface ProfitTransactionsResponse {
 }
 
 export function fetchPricingCatalog(): Promise<PricingCatalogRow[]> {
-  return apiGet<PricingCatalogRow[]>("/admin/profit/catalog");
+  return apiGet<PricingCatalogRow[]>("api/admin/profit/catalog");
 }
 
 export function fetchProfitSettings(): Promise<ServiceProfitSettingRow[]> {
-  return apiGet<ServiceProfitSettingRow[]>("/admin/profit/settings");
+  return apiGet<ServiceProfitSettingRow[]>("api/admin/profit/settings");
 }
 
 export function updateProfitSetting(
@@ -160,7 +160,7 @@ export function updateProfitSetting(
   }
 ): Promise<ServiceProfitSettingRow> {
   const key = encodeURIComponent(serviceKey);
-  return apiPut<ServiceProfitSettingRow>(`admin/profit/settings/${key}`, body);
+  return apiPut<ServiceProfitSettingRow>(`api/admin/profit/settings/${key}`, body);
 }
 
 export function fetchProfitTransactions(params: {
@@ -174,7 +174,7 @@ export function fetchProfitTransactions(params: {
   to?: string;
   search?: string;
 }): Promise<ProfitTransactionsResponse> {
-  return apiGet<ProfitTransactionsResponse>("admin/profit/transactions", {
+  return apiGet<ProfitTransactionsResponse>("api/admin/profit/transactions", {
     page: params.page,
     per_page: params.per_page ?? 25,
     user_id: params.user_id,

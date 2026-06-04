@@ -19,18 +19,18 @@ export interface BillCommissionRateRow {
 }
 
 export function fetchCommissionTiers(): Promise<CommissionVolumeTier[]> {
-  return apiGet<CommissionVolumeTier[]>("/admin/commission/tiers");
+  return apiGet<CommissionVolumeTier[]>("api/admin/commission/tiers");
 }
 
 export function updateCommissionTier(
   tierKey: string,
   body: Partial<Pick<CommissionVolumeTier, "label" | "min_monthly_volume_ngn" | "max_monthly_volume_ngn" | "sort_order">>
 ): Promise<CommissionVolumeTier> {
-  return apiPut<CommissionVolumeTier>(`/admin/commission/tiers/${tierKey}`, body);
+  return apiPut<CommissionVolumeTier>(`api/admin/commission/tiers/${tierKey}`, body);
 }
 
 export function fetchCommissionRates(scene?: string): Promise<BillCommissionRateRow[]> {
-  return apiGet<BillCommissionRateRow[]>("/admin/commission/rates", scene ? { scene } : undefined);
+  return apiGet<BillCommissionRateRow[]>("api/admin/commission/rates", scene ? { scene } : undefined);
 }
 
 export function saveCommissionRate(body: {
@@ -40,16 +40,16 @@ export function saveCommissionRate(body: {
   commission_pct: number;
   is_active?: boolean;
 }): Promise<BillCommissionRateRow> {
-  return apiPost<BillCommissionRateRow>("/admin/commission/rates", body);
+  return apiPost<BillCommissionRateRow>("api/admin/commission/rates", body);
 }
 
 export function updateCommissionRate(
   id: number,
   body: { commission_pct?: number; is_active?: boolean }
 ): Promise<BillCommissionRateRow> {
-  return apiPut<BillCommissionRateRow>(`/admin/commission/rates/${id}`, body);
+  return apiPut<BillCommissionRateRow>(`api/admin/commission/rates/${id}`, body);
 }
 
 export function deleteCommissionRate(id: number): Promise<void> {
-  return apiDelete(`/admin/commission/rates/${id}`);
+  return apiDelete(`api/admin/commission/rates/${id}`);
 }
