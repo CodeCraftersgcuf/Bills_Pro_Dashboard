@@ -305,11 +305,35 @@ function PricingCatalogPanel() {
 
   const rows = catalogQ.data ?? [];
 
+  const grouped = useMemo(() => {
+    const map = new Map<string, typeof rows>();
+    for (const r of rows) {
+      const g = r.group ?? "Other";
+      if (!map.has(g)) map.set(g, []);
+      map.get(g)!.push(r);
+    }
+    return map;
+  }, [rows]);
+
   return (
     <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
       <div className="border-b border-gray-100 px-4 py-4 md:px-6" style={{ backgroundColor: HEADER_GREEN }}>
         <h2 className="text-lg font-semibold text-white">Pricing catalog (PDF model)</h2>
-        <p className="mt-1 text-sm text-white/90">Provider cost · Billspro charge · Estimated profit</p>
+        <p className="mt-1 text-sm text-white/90">
+          Matches your pricing PDF — rule text from Rates, not sample math. Edit values under{" "}
+          <Link to="/rates" className="font-semibold underline">
+            Rates
+          </Link>{" "}
+          or{" "}
+          <Link to="/rates/commissions" className="font-semibold underline">
+            Commission tables
+          </Link>
+          .
+        </p>
+      </div>
+      <div className="border-b border-gray-100 bg-amber-50 px-4 py-3 text-sm text-amber-950 md:px-6">
+        Columns show <strong>configured rules</strong> (e.g. $1 + 1%, ₦80 FX markup), not calculated totals on a
+        fake transaction. Card funding FX markup is set on Virtual card → Fund → <strong>FX markup (NGN)</strong>.
       </div>
       <div className="overflow-x-auto">
         {catalogQ.isLoading ? (
@@ -318,6 +342,7 @@ function PricingCatalogPanel() {
           <table className="w-full min-w-[800px] text-left text-sm">
             <thead>
               <tr className="bg-gray-100 text-gray-700">
+                <th className="px-4 py-3 font-semibold">Section</th>
                 <th className="px-4 py-3 font-semibold">Service</th>
                 <th className="px-4 py-3 font-semibold">Provider cost</th>
                 <th className="px-4 py-3 font-semibold">Billspro charge</th>
@@ -326,19 +351,22 @@ function PricingCatalogPanel() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((r, i) => (
-                <tr key={`${r.label}-${i}`} style={{ backgroundColor: i % 2 === 0 ? ROW_A : ROW_B }}>
-                  <td className="px-4 py-3 font-medium text-gray-900">{r.label}</td>
-                  <td className="px-4 py-3 text-gray-700">{r.provider_cost_display}</td>
-                  <td className="px-4 py-3 text-gray-700">{r.billspro_charge_display}</td>
-                  <td className="px-4 py-3 font-semibold text-emerald-800">{r.estimated_profit_display}</td>
-                  <td className="px-4 py-3">
-                    <Link to={r.edit_path} className="text-xs font-semibold text-[#1B800F] hover:underline">
-                      Configure
-                    </Link>
-                  </td>
-                </tr>
-              ))}
+              {[...grouped.entries()].flatMap(([group, groupRows]) =>
+                groupRows.map((r, i) => (
+                  <tr key={`${group}-${r.label}-${i}`} style={{ backgroundColor: i % 2 === 0 ? ROW_A : ROW_B }}>
+                    <td className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">{group}</td>
+                    <td className="px-4 py-3 font-medium text-gray-900">{r.label}</td>
+                    <td className="px-4 py-3 text-gray-700">{r.provider_cost_display}</td>
+                    <td className="px-4 py-3 text-gray-700">{r.billspro_charge_display}</td>
+                    <td className="px-4 py-3 font-semibold text-emerald-800">{r.estimated_profit_display}</td>
+                    <td className="px-4 py-3">
+                      <Link to={r.edit_path} className="text-xs font-semibold text-[#1B800F] hover:underline">
+                        Configure
+                      </Link>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         )}

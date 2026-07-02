@@ -15,6 +15,7 @@ export type AdminPushNotification = {
   audience: string;
   attachment: string | null;
   sent_count: number;
+  push_queued_count?: number;
   created_at: string | null;
 };
 

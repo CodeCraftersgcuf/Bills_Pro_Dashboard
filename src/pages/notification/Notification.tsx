@@ -193,6 +193,8 @@ const Notification: React.FC = () => {
                   <th className="px-4 py-3">Subject</th>
                   <th className="px-4 py-3">Message</th>
                   <th className="px-4 py-3">Audience</th>
+                  <th className="px-4 py-3">In-app</th>
+                  <th className="px-4 py-3">Push queued</th>
                   <th className="px-4 py-3">Date</th>
                   <th className="px-4 py-3">Action</th>
                 </tr>
@@ -200,7 +202,7 @@ const Notification: React.FC = () => {
               <tbody>
                 {filtered.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
+                    <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
                       No notifications found.
                     </td>
                   </tr>
@@ -210,6 +212,8 @@ const Notification: React.FC = () => {
                       <td className="px-4 py-3 font-medium text-gray-900">{n.subject}</td>
                       <td className="px-4 py-3 max-w-[320px] truncate text-gray-700">{n.message}</td>
                       <td className="px-4 py-3 text-gray-700">{n.audience}</td>
+                      <td className="px-4 py-3 text-gray-700">{n.sent_count ?? "—"}</td>
+                      <td className="px-4 py-3 text-gray-700">{n.push_queued_count ?? "—"}</td>
                       <td className="px-4 py-3 text-gray-700">{formatDate(n.created_at)}</td>
                       <td className="px-4 py-3">
                         <div className="flex gap-2">

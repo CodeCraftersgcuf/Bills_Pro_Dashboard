@@ -60,6 +60,7 @@ export interface ProfitBreakdown {
 
 export interface PricingCatalogRow {
   source: string;
+  group?: string;
   rate_id?: number;
   slug?: string;
   category?: string;
