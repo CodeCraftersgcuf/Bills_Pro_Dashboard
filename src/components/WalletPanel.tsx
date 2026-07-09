@@ -159,14 +159,28 @@ function mergeTimelineRows(data: {
   transactions: Record<string, unknown>[];
   deposits: Record<string, unknown>[];
 }): WalletTxRow[] {
+  const linkedDepositRefs = new Set<string>();
+  const linkedDepositIds = new Set<string>();
+
   const items: { sort: number; row: WalletTxRow }[] = [];
   for (const t of data.transactions ?? []) {
     if (!includeNairaWalletTransaction(t)) continue;
+    if (String(t.type ?? "").toLowerCase() === "deposit") {
+      const ref = String(t.reference ?? "").trim();
+      if (ref) linkedDepositRefs.add(ref);
+      const meta = t.metadata;
+      if (meta && typeof meta === "object" && meta !== null && "deposit_id" in meta) {
+        linkedDepositIds.add(String((meta as { deposit_id: unknown }).deposit_id));
+      }
+    }
     const created = String(t.created_at ?? "");
     items.push({ sort: new Date(created).getTime() || 0, row: mapRawTransaction(t) });
   }
   for (const d of data.deposits ?? []) {
     if (!includeNairaWalletDeposit(d)) continue;
+    const depRef = String(d.deposit_reference ?? "").trim();
+    const depId = String(d.id ?? "").trim();
+    if ((depRef && linkedDepositRefs.has(depRef)) || (depId && linkedDepositIds.has(depId))) continue;
     const created = String(d.created_at ?? "");
     items.push({ sort: new Date(created).getTime() || 0, row: mapRawDeposit(d) });
   }
