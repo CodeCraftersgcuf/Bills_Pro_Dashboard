@@ -4,7 +4,13 @@ import { Users, UserCheck, UserX, ChevronDown, Search } from "lucide-react";
 import StatCard from "../../components/StatCard";
 import KycDetailsModal, { type KycDetailsInitial } from "../../components/KycDetailsModal";
 import { fetchAdminStats } from "../../api/adminStats";
-import { approveKyc, fetchAdminKycList, rejectKyc, type KycRecord } from "../../api/adminKyc";
+import {
+  approveKyc,
+  fetchAdminKycDetail,
+  fetchAdminKycList,
+  rejectKyc,
+  type KycRecord,
+} from "../../api/adminKyc";
 import { getAdminToken } from "../../api/authToken";
 import { avatarUrlForName } from "../../utils/avatarUrl";
 import { presetToFromTo, type DateRangePreset } from "../../utils/dateRange";
@@ -91,6 +97,36 @@ function nonEmptyStr(v: unknown): string {
   return t;
 }
 
+function mapKycRecordToInitial(
+  kyc: KycRecord,
+  userFallback?: Record<string, unknown>
+): KycDetailsInitial {
+  const u = (kyc.user ?? userFallback ?? {}) as Record<string, unknown>;
+  const userName =
+    String(u.name ?? "")
+      .trim() ||
+    [u.first_name, u.last_name].filter(Boolean).join(" ").trim() ||
+    "User";
+  const fromParts = nameToFirstLast(userName);
+  return {
+    firstName: nonEmptyStr(kyc.first_name) || nonEmptyStr(u.first_name) || fromParts.firstName,
+    lastName: nonEmptyStr(kyc.last_name) || nonEmptyStr(u.last_name) || fromParts.lastName,
+    email: nonEmptyStr(kyc.email) || nonEmptyStr(u.email) || "",
+    status: mapApiStatus(kyc, false),
+    dateOfBirth: formatKycDobForModal(kyc.date_of_birth),
+    nin: nonEmptyStr(kyc.nin_number),
+    bvn: nonEmptyStr(kyc.bvn_number),
+    location: nonEmptyStr(kyc.location),
+    ninVerificationStatus: nonEmptyStr(kyc.nin_verification_status),
+    bvnVerificationStatus: nonEmptyStr(kyc.bvn_verification_status),
+    ninVerificationReportId: nonEmptyStr(kyc.nin_verification_report_id),
+    bvnVerificationReportId: nonEmptyStr(kyc.bvn_verification_report_id),
+    identityVerifiedAt: nonEmptyStr(kyc.identity_verified_at),
+    ninVerificationData: kyc.nin_verification_data ?? null,
+    bvnVerificationData: kyc.bvn_verification_data ?? null,
+  };
+}
+
 function fmtInt(n: number): string {
   return n.toLocaleString("en-NG");
 }
@@ -111,6 +147,8 @@ const KYC: React.FC = () => {
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailInitial, setDetailInitial] = useState<KycDetailsInitial | null>(null);
   const [detailUserId, setDetailUserId] = useState<number | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const searchDebounced = useDeferredValue(search);
@@ -251,7 +289,9 @@ const KYC: React.FC = () => {
     },
   });
 
-  const openKycDetails = (row: KycRecord | Record<string, unknown>, isUnverified: boolean) => {
+  const openKycDetails = async (row: KycRecord | Record<string, unknown>, isUnverified: boolean) => {
+    setDetailError(null);
+
     if (isUnverified) {
       const u = row as Record<string, unknown>;
       const name =
@@ -268,6 +308,7 @@ const KYC: React.FC = () => {
         dateOfBirth: "",
         nin: "",
         bvn: "",
+        location: "",
       });
       setDetailUserId(Number(u.id ?? 0) || null);
       setDetailOpen(true);
@@ -276,33 +317,36 @@ const KYC: React.FC = () => {
 
     const kyc = row as KycRecord;
     const u = (kyc.user ?? {}) as Record<string, unknown>;
-    const userName =
-      String(u.name ?? "")
-        .trim() ||
-      [u.first_name, u.last_name].filter(Boolean).join(" ").trim() ||
-      "User";
-    const fromParts = nameToFirstLast(userName);
-    const firstName = nonEmptyStr(kyc.first_name) || nonEmptyStr(u.first_name) || fromParts.firstName;
-    const lastName = nonEmptyStr(kyc.last_name) || nonEmptyStr(u.last_name) || fromParts.lastName;
-    const email = nonEmptyStr(kyc.email) || nonEmptyStr(u.email) || "";
-
-    setDetailInitial({
-      firstName,
-      lastName,
-      email,
-      status: mapApiStatus(kyc, false),
-      dateOfBirth: formatKycDobForModal(kyc.date_of_birth),
-      nin: nonEmptyStr(kyc.nin_number),
-      bvn: nonEmptyStr(kyc.bvn_number),
-    });
-    setDetailUserId(Number(kyc.user_id) || Number(u.id) || null);
+    const userId = Number(kyc.user_id) || Number(u.id) || 0;
+    setDetailUserId(userId || null);
+    setDetailInitial(mapKycRecordToInitial(kyc));
     setDetailOpen(true);
+
+    if (!userId) return;
+
+    setDetailLoading(true);
+    try {
+      const detail = await fetchAdminKycDetail(userId);
+      if (detail.kyc) {
+        setDetailInitial(mapKycRecordToInitial(detail.kyc, detail.user));
+      }
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === "object" && "message" in err
+          ? String((err as { message: unknown }).message)
+          : "Failed to load full KYC details.";
+      setDetailError(msg);
+    } finally {
+      setDetailLoading(false);
+    }
   };
 
   const closeKycDetails = () => {
     setDetailOpen(false);
     setDetailInitial(null);
     setDetailUserId(null);
+    setDetailLoading(false);
+    setDetailError(null);
   };
 
   return (
@@ -569,6 +613,8 @@ const KYC: React.FC = () => {
         open={detailOpen}
         onClose={closeKycDetails}
         initial={detailInitial}
+        loading={detailLoading && !detailInitial}
+        errorMessage={detailError}
         busy={approveMut.isPending || rejectMut.isPending}
         onApprove={detailUserId ? () => approveMut.mutate(detailUserId) : undefined}
         onReject={detailUserId ? (reason) => rejectMut.mutate({ uid: detailUserId, reason }) : undefined}

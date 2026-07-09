@@ -11,6 +11,17 @@ export type KycRecord = {
   date_of_birth?: string | null;
   nin_number?: string | null;
   bvn_number?: string | null;
+  location?: string | null;
+  nin_verification_report_id?: string | null;
+  bvn_verification_report_id?: string | null;
+  nin_verification_status?: string | null;
+  bvn_verification_status?: string | null;
+  nin_verification_data?: Record<string, unknown> | null;
+  bvn_verification_data?: Record<string, unknown> | null;
+  identity_verified_at?: string | null;
+  has_identity_verification?: boolean;
+  has_face_verification_video?: boolean;
+  rejection_reason?: string | null;
   created_at: string | null;
   user?: {
     id: number;

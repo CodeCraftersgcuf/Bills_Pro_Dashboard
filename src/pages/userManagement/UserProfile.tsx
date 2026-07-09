@@ -136,6 +136,14 @@ function mapKycShowToInitial(data: { user: Record<string, unknown>; kyc: KycReco
       dateOfBirth: formatDobInput(kyc.date_of_birth),
       nin: kyc.nin_number != null && kyc.nin_number !== "" ? String(kyc.nin_number) : "",
       bvn: kyc.bvn_number != null && kyc.bvn_number !== "" ? String(kyc.bvn_number) : "",
+      location: kyc.location != null && kyc.location !== "" ? String(kyc.location) : "",
+      ninVerificationStatus: kyc.nin_verification_status ?? "",
+      bvnVerificationStatus: kyc.bvn_verification_status ?? "",
+      ninVerificationReportId: kyc.nin_verification_report_id ?? "",
+      bvnVerificationReportId: kyc.bvn_verification_report_id ?? "",
+      identityVerifiedAt: kyc.identity_verified_at ?? "",
+      ninVerificationData: kyc.nin_verification_data ?? null,
+      bvnVerificationData: kyc.bvn_verification_data ?? null,
     };
   }
 
@@ -147,6 +155,7 @@ function mapKycShowToInitial(data: { user: Record<string, unknown>; kyc: KycReco
     dateOfBirth: "",
     nin: "",
     bvn: "",
+    location: "",
   };
 }
 

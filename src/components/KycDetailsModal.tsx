@@ -6,6 +6,13 @@ const GREEN = "#1B800F";
 const inputClass =
   "w-full rounded-2xl border-0 bg-[#DCDCDE] px-4 py-3.5 text-[15px] text-gray-900 placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-[#1B800F]/35";
 
+const SKIP_VERIFY_KEYS = new Set([
+  "photo",
+  "base64Image",
+  "photo_present",
+  "base64Image_present",
+]);
+
 export type KycDetailsInitial = {
   firstName: string;
   lastName: string;
@@ -14,6 +21,14 @@ export type KycDetailsInitial = {
   dateOfBirth?: string;
   nin?: string;
   bvn?: string;
+  location?: string;
+  ninVerificationStatus?: string;
+  bvnVerificationStatus?: string;
+  ninVerificationReportId?: string;
+  bvnVerificationReportId?: string;
+  identityVerifiedAt?: string;
+  ninVerificationData?: Record<string, unknown> | null;
+  bvnVerificationData?: Record<string, unknown> | null;
 };
 
 interface KycDetailsModalProps {
@@ -27,6 +42,74 @@ interface KycDetailsModalProps {
   loading?: boolean;
   /** Shown when the KYC detail request failed (e.g. network or 403). */
   errorMessage?: string | null;
+}
+
+function formatLabel(key: string): string {
+  return key
+    .replace(/_/g, " ")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function formatVerifyValue(value: unknown): string {
+  if (value == null || value === "") return "—";
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value);
+}
+
+function VerificationDataBlock({
+  title,
+  status,
+  reportId,
+  data,
+}: {
+  title: string;
+  status?: string;
+  reportId?: string;
+  data?: Record<string, unknown> | null;
+}) {
+  const entries = Object.entries(data ?? {}).filter(
+    ([key, value]) => !SKIP_VERIFY_KEYS.has(key) && value != null && value !== "" && typeof value !== "object"
+  );
+
+  if (!status && !reportId && entries.length === 0) return null;
+
+  return (
+    <div className="rounded-2xl border border-gray-300/80 bg-white/70 p-4">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-sm font-bold text-gray-900">{title}</h3>
+        {status ? (
+          <span
+            className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+              status.toLowerCase() === "success"
+                ? "bg-[#DCFCE7] text-[#166534]"
+                : "bg-[#FEE2E2] text-[#B91C1C]"
+            }`}
+          >
+            {status}
+          </span>
+        ) : null}
+      </div>
+      {reportId ? (
+        <p className="mb-3 break-all text-xs text-gray-600">
+          Report ID: <span className="font-medium text-gray-800">{reportId}</span>
+        </p>
+      ) : null}
+      {entries.length > 0 ? (
+        <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {entries.map(([key, value]) => (
+            <div key={key} className="min-w-0">
+              <dt className="text-xs font-medium text-gray-500">{formatLabel(key)}</dt>
+              <dd className="mt-0.5 break-words text-sm text-gray-900">{formatVerifyValue(value)}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : (
+        <p className="text-sm text-gray-500">No provider fields stored.</p>
+      )}
+    </div>
+  );
 }
 
 const KycDetailsModal: React.FC<KycDetailsModalProps> = ({
@@ -45,6 +128,7 @@ const KycDetailsModal: React.FC<KycDetailsModalProps> = ({
   const [dob, setDob] = useState("");
   const [nin, setNin] = useState("");
   const [bvn, setBvn] = useState("");
+  const [location, setLocation] = useState("");
   const [status, setStatus] = useState("");
 
   useEffect(() => {
@@ -65,6 +149,7 @@ const KycDetailsModal: React.FC<KycDetailsModalProps> = ({
     setDob(initial.dateOfBirth ?? "");
     setNin(initial.nin ?? "");
     setBvn(initial.bvn ?? "");
+    setLocation(initial.location ?? "");
   }, [open, initial]);
 
   useEffect(() => {
@@ -75,6 +160,7 @@ const KycDetailsModal: React.FC<KycDetailsModalProps> = ({
     setDob("");
     setNin("");
     setBvn("");
+    setLocation("");
     setStatus("");
   }, [open]);
 
@@ -97,7 +183,7 @@ const KycDetailsModal: React.FC<KycDetailsModalProps> = ({
         role="dialog"
         aria-modal="true"
         aria-labelledby="kyc-details-modal-title"
-        className="relative z-[1] flex w-full min-h-0 max-h-[min(90dvh,calc(100vh-2rem))] max-w-[480px] flex-col overflow-hidden rounded-3xl bg-[#F3F4F6] shadow-2xl"
+        className="relative z-[1] flex w-full min-h-0 max-h-[min(90dvh,calc(100vh-2rem))] max-w-[560px] flex-col overflow-hidden rounded-3xl bg-[#F3F4F6] shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="shrink-0 border-b border-gray-300/70 px-6 pb-4 pt-6">
@@ -168,6 +254,16 @@ const KycDetailsModal: React.FC<KycDetailsModalProps> = ({
               />
             </div>
             <div>
+              <label className="mb-2 block text-sm font-medium text-gray-800">Location</label>
+              <input
+                className={inputClass}
+                placeholder="Location"
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                readOnly
+              />
+            </div>
+            <div>
               <label className="mb-2 block text-sm font-medium text-gray-800">NIN</label>
               <input
                 className={inputClass}
@@ -206,6 +302,34 @@ const KycDetailsModal: React.FC<KycDetailsModalProps> = ({
                 />
               </div>
             </div>
+
+            {(initial?.ninVerificationData ||
+              initial?.bvnVerificationData ||
+              initial?.ninVerificationStatus ||
+              initial?.bvnVerificationStatus) && (
+              <div className="space-y-4 border-t border-gray-300/70 pt-5">
+                <div>
+                  <h3 className="text-base font-bold text-gray-900">Identity verification</h3>
+                  {initial?.identityVerifiedAt ? (
+                    <p className="mt-1 text-xs text-gray-500">
+                      Verified at: {new Date(initial.identityVerifiedAt).toLocaleString()}
+                    </p>
+                  ) : null}
+                </div>
+                <VerificationDataBlock
+                  title="NIN provider data"
+                  status={initial?.ninVerificationStatus}
+                  reportId={initial?.ninVerificationReportId}
+                  data={initial?.ninVerificationData}
+                />
+                <VerificationDataBlock
+                  title="BVN provider data"
+                  status={initial?.bvnVerificationStatus}
+                  reportId={initial?.bvnVerificationReportId}
+                  data={initial?.bvnVerificationData}
+                />
+              </div>
+            )}
           </div>
 
           <button
