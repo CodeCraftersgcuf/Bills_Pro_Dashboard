@@ -137,6 +137,12 @@ function mapKycShowToInitial(data: { user: Record<string, unknown>; kyc: KycReco
       nin: kyc.nin_number != null && kyc.nin_number !== "" ? String(kyc.nin_number) : "",
       bvn: kyc.bvn_number != null && kyc.bvn_number !== "" ? String(kyc.bvn_number) : "",
       location: kyc.location != null && kyc.location !== "" ? String(kyc.location) : "",
+      userId: Number(kyc.user_id) || Number(u.id) || null,
+      rejectionReason: kyc.rejection_reason ? String(kyc.rejection_reason) : "",
+      hasFaceVerificationVideo: Boolean(kyc.has_face_verification_video),
+      faceVerificationSubmittedAt: kyc.face_verification_submitted_at
+        ? String(kyc.face_verification_submitted_at)
+        : "",
       ninVerificationStatus: kyc.nin_verification_status ?? "",
       bvnVerificationStatus: kyc.bvn_verification_status ?? "",
       ninVerificationReportId: kyc.nin_verification_report_id ?? "",
@@ -156,6 +162,8 @@ function mapKycShowToInitial(data: { user: Record<string, unknown>; kyc: KycReco
     nin: "",
     bvn: "",
     location: "",
+    userId: Number(u.id) || null,
+    hasFaceVerificationVideo: false,
   };
 }
 

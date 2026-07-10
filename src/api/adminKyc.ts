@@ -1,4 +1,6 @@
-import { apiGet, apiPost } from "./httpClient";
+import { API_BASE_URL } from "./apiConfig";
+import { apiGet, apiPost, ApiError } from "./httpClient";
+import { clearAdminToken, getAdminToken } from "./authToken";
 import type { LaravelPaginator } from "./adminUsers";
 
 export type KycRecord = {
@@ -21,6 +23,7 @@ export type KycRecord = {
   identity_verified_at?: string | null;
   has_identity_verification?: boolean;
   has_face_verification_video?: boolean;
+  face_verification_submitted_at?: string | null;
   rejection_reason?: string | null;
   created_at: string | null;
   user?: {
@@ -32,6 +35,15 @@ export type KycRecord = {
     phone_number: string | null;
   };
 };
+
+function resolveAdminKycFaceVideoUrl(userId: number | string): string {
+  const base = API_BASE_URL.replace(/\/$/, "");
+  const path = `admin/kyc/${userId}/face-video`;
+  if (base.endsWith("/api")) {
+    return `${base}/${path}`;
+  }
+  return `${base}/api/${path}`;
+}
 
 export function fetchAdminKycList(params: {
   page?: number;
@@ -58,6 +70,38 @@ export function fetchAdminKycDetail(userId: number | string): Promise<{
   kyc: KycRecord | null;
 }> {
   return apiGet<{ user: Record<string, unknown>; kyc: KycRecord | null }>(`api/admin/kyc/${userId}`);
+}
+
+/** Fetch face verification video as a blob URL (caller must revokeObjectURL). */
+export async function fetchAdminKycFaceVideoBlobUrl(userId: number | string): Promise<string> {
+  const token = getAdminToken();
+  const res = await fetch(resolveAdminKycFaceVideoUrl(userId), {
+    method: "GET",
+    headers: {
+      Accept: "video/*,application/octet-stream",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+
+  if (!res.ok) {
+    if (res.status === 401) {
+      clearAdminToken();
+      if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
+        window.location.assign("/login");
+      }
+    }
+    let message = "Failed to load face verification video.";
+    try {
+      const json = (await res.json()) as { message?: string };
+      if (json?.message) message = json.message;
+    } catch {
+      // ignore
+    }
+    throw new ApiError(message, res.status);
+  }
+
+  const blob = await res.blob();
+  return URL.createObjectURL(blob);
 }
 
 export function approveKyc(userId: number | string): Promise<KycRecord> {
