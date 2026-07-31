@@ -52,8 +52,10 @@ function exportReconUsersCsv(rows: ReconciliationUserRow[]): void {
       "display_name",
       "email",
       "deposited",
+      "card_refunds",
       "withdrawn",
       "bill_payments",
+      "card_creation_fees",
       "card_funding",
       "card_spent_usd",
       "naira_balance",
@@ -66,8 +68,10 @@ function exportReconUsersCsv(rows: ReconciliationUserRow[]): void {
       r.display_name,
       r.email,
       r.deposited,
+      r.card_refunds ?? 0,
       r.withdrawn,
       r.bill_payments,
+      r.card_creation_fees,
       r.card_funding,
       r.card_spent_usd,
       r.naira_balance,
@@ -134,10 +138,23 @@ function MoneyStoryPanel({
 
               <section>
                 <h3 className="mb-2 text-sm font-semibold text-gray-800">Money in</h3>
-                <div className="rounded-xl bg-[#F3F4F6] px-4 py-3">
-                  <p className="text-xs text-gray-500">Deposited</p>
-                  <p className="text-xl font-bold text-gray-900">{story.money_in.deposited_display}</p>
-                  <p className="text-xs text-gray-500">{story.money_in.deposited_count} deposits</p>
+                <div className="space-y-2">
+                  <div className="rounded-xl bg-[#F3F4F6] px-4 py-3">
+                    <p className="text-xs text-gray-500">Deposited</p>
+                    <p className="text-xl font-bold text-gray-900">{story.money_in.deposited_display}</p>
+                    <p className="text-xs text-gray-500">{story.money_in.deposited_count} deposits</p>
+                  </div>
+                  {(story.money_in.card_refunds ?? 0) > 0 ? (
+                    <div className="rounded-xl bg-[#F3F4F6] px-4 py-3">
+                      <p className="text-xs text-gray-500">Card refunds</p>
+                      <p className="text-lg font-bold text-gray-900">
+                        {story.money_in.card_refunds_display ?? "—"}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {story.money_in.card_refunds_count ?? 0} refunds
+                      </p>
+                    </div>
+                  ) : null}
                 </div>
               </section>
 
@@ -432,7 +449,7 @@ const Reconciliation: React.FC = () => {
                 </div>
               ))}
             </div>
-            <div className="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+            <div className="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-5">
               <div className="rounded-xl bg-gray-50 px-3 py-2">
                 <p className="text-xs text-gray-500">Withdrawals</p>
                 <p className="font-semibold">{overview.money_out.withdrawn_display}</p>
@@ -440,6 +457,10 @@ const Reconciliation: React.FC = () => {
               <div className="rounded-xl bg-gray-50 px-3 py-2">
                 <p className="text-xs text-gray-500">Bills</p>
                 <p className="font-semibold">{overview.money_out.bill_payments_display}</p>
+              </div>
+              <div className="rounded-xl bg-gray-50 px-3 py-2">
+                <p className="text-xs text-gray-500">Card creation</p>
+                <p className="font-semibold">{overview.money_out.card_creation_fees_display}</p>
               </div>
               <div className="rounded-xl bg-gray-50 px-3 py-2">
                 <p className="text-xs text-gray-500">Card loads</p>
@@ -503,6 +524,7 @@ const Reconciliation: React.FC = () => {
                 <th className="px-4 py-3">Deposited</th>
                 <th className="px-4 py-3">Withdrawn</th>
                 <th className="px-4 py-3">Bills</th>
+                <th className="px-4 py-3">Card create</th>
                 <th className="px-4 py-3">Card loads</th>
                 <th className="px-4 py-3">Card spend</th>
                 <th className="px-4 py-3">Naira bal.</th>
@@ -514,13 +536,13 @@ const Reconciliation: React.FC = () => {
             <tbody>
               {usersQuery.isLoading ? (
                 <tr>
-                  <td colSpan={10} className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan={11} className="px-4 py-8 text-center text-gray-500">
                     Loading…
                   </td>
                 </tr>
               ) : tableRows.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan={11} className="px-4 py-8 text-center text-gray-500">
                     No users with activity in this range.
                   </td>
                 </tr>
@@ -537,6 +559,7 @@ const Reconciliation: React.FC = () => {
                     <td className="px-4 py-3 font-medium">{row.deposited_display}</td>
                     <td className="px-4 py-3">{row.withdrawn_display}</td>
                     <td className="px-4 py-3">{row.bill_payments_display}</td>
+                    <td className="px-4 py-3">{row.card_creation_fees_display}</td>
                     <td className="px-4 py-3">{row.card_funding_display}</td>
                     <td className="px-4 py-3">{row.card_spent_usd_display}</td>
                     <td className="px-4 py-3">{row.naira_balance_display}</td>

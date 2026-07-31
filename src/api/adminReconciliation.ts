@@ -10,6 +10,11 @@ export type ReconciliationMoneyIn = {
   deposited: number;
   deposited_display: string;
   deposited_count: number;
+  card_refunds?: number;
+  card_refunds_display?: string;
+  card_refunds_count?: number;
+  total?: number;
+  total_display?: string;
   helper: string;
 };
 
@@ -101,6 +106,8 @@ export type ReconciliationUserRow = {
   phone_number: string | null;
   deposited: number;
   deposited_display: string;
+  card_refunds?: number;
+  card_refunds_display?: string;
   withdrawn: number;
   withdrawn_display: string;
   bill_payments: number;
