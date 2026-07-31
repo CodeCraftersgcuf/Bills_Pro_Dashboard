@@ -290,17 +290,6 @@ function StatusPanel({
         </>
       )}
 
-      {report.notes.lines.length > 0 ? (
-        <div className="mt-3 rounded-2xl bg-amber-50 px-4 py-3">
-          <p className="text-xs font-semibold text-amber-900">Book-keeping notes</p>
-          {report.notes.lines.map((n) => (
-            <p key={n.type} className="mt-1 text-xs text-amber-800">
-              {n.label}: {n.amount_display} ({n.count})
-            </p>
-          ))}
-          <p className="mt-1 text-[11px] text-amber-700">{report.notes.helper}</p>
-        </div>
-      ) : null}
     </div>
   );
 }
