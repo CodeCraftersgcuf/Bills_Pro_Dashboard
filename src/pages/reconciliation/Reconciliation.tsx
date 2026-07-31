@@ -460,7 +460,7 @@ const Reconciliation: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const initialUserId = searchParams.get("user_id");
 
-  const [datePreset, setDatePreset] = useState<DateRangePreset>("30d");
+  const [datePreset, setDatePreset] = useState<DateRangePreset>("all");
   const [customRange, setCustomRange] = useState(defaultCustomRangeLocal);
   const [search, setSearch] = useState("");
   const searchDebounced = useDeferredValue(search);
