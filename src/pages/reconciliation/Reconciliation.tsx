@@ -1,16 +1,19 @@
-import React, { useDeferredValue, useEffect, useState } from "react";
+import React, { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import { ArcElement, Chart as ChartJS, Legend, Tooltip } from "chart.js";
+import { Doughnut } from "react-chartjs-2";
 import {
   ArrowDownToLine,
   ArrowUpFromLine,
+  BadgeCheck,
+  CalendarDays,
   CreditCard,
   Search,
-  Scale,
+  TriangleAlert,
   Wallet,
   X,
 } from "lucide-react";
-import StatCard from "../../components/StatCard";
 import {
   fetchReconciliationOverview,
   fetchReconciliationUserLedger,
@@ -28,13 +31,22 @@ import {
 } from "../../utils/dateRange";
 import { downloadCsv } from "../../utils/csvDownload";
 
+ChartJS.register(ArcElement, Tooltip, Legend);
+
 const GREEN = "#1B800F";
+const BRIGHT_GREEN = "#21D721";
 const TABLE_HEADER_GREEN = "#21D721";
 const TABLE_SEARCH_BG = "#189016";
-const TABLE_ROW_A = "#F9F9F9";
-const TABLE_ROW_B = "#E6E6E6";
 const TABLE_COL_HEADER_BG = "#EBEBEB";
 const ACTION_GREEN = "#34D334";
+
+/** One colour per outflow bucket so the bars and the doughnut tell the same story. */
+const OUTFLOW_COLORS: Record<string, string> = {
+  withdrawn: "#1B800F",
+  bill_payments: "#21D721",
+  card_funding: "#0E5C08",
+  card_creation_fees: "#E08707",
+};
 
 const DATE_PRESETS: { id: DateRangePreset; label: string }[] = [
   { id: "today", label: "Today" },
@@ -82,6 +94,13 @@ function exportReconUsersCsv(rows: ReconciliationUserRow[]): void {
       r.residual,
     ])
   );
+}
+
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+
+  return (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : "")).toUpperCase();
 }
 
 function statusPill(status: string): string {
@@ -510,6 +529,23 @@ const Reconciliation: React.FC = () => {
   const tableRows = usersQuery.data?.data ?? [];
   const lastPage = usersQuery.data?.last_page ?? 1;
 
+  const outflowChart = useMemo(() => {
+    const bars = (overview?.where_money_went ?? []).filter((b) => b.amount > 0);
+    if (bars.length === 0) return null;
+
+    return {
+      labels: bars.map((b) => b.label),
+      datasets: [
+        {
+          data: bars.map((b) => b.amount),
+          backgroundColor: bars.map((b) => OUTFLOW_COLORS[b.key] ?? "#9CA3AF"),
+          borderWidth: 0,
+          hoverOffset: 6,
+        },
+      ],
+    };
+  }, [overview]);
+
   const openUser = (userId: number) => {
     setSelectedUserId(userId);
     setSearchParams((prev) => {
@@ -533,7 +569,7 @@ const Reconciliation: React.FC = () => {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-6 p-4 md:p-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Reconciliation</h1>
           <p className="mt-1 text-sm text-gray-500">
@@ -542,6 +578,13 @@ const Reconciliation: React.FC = () => {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <Link
+            to="/daily-activity"
+            className="flex items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50"
+          >
+            <CalendarDays className="h-4 w-4" style={{ color: GREEN }} />
+            Today&apos;s activity
+          </Link>
           <select
             className={pillSelect}
             value={datePreset}
@@ -581,102 +624,245 @@ const Reconciliation: React.FC = () => {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <StatCard
-          icon={ArrowDownToLine}
-          label="Money in"
-          value={overview?.money_in.deposited_display ?? "—"}
-          hint={overview?.money_in.helper ?? "Naira deposits"}
-        />
-        <StatCard
-          icon={ArrowUpFromLine}
-          label="Money out"
-          value={overview?.money_out.total_display ?? "—"}
-          hint={overview?.money_out.helper ?? "Withdrawals, bills, cards"}
-        />
-        <StatCard
-          icon={Wallet}
-          label="Still held"
-          value={overview?.still_held.naira_balance_display ?? "—"}
-          hint={
-            overview
-              ? `Naira now · Cards ${overview.still_held.card_balance_usd_display}`
-              : "Current balances"
-          }
-        />
+      <div
+        className="overflow-hidden rounded-3xl p-5 shadow-md md:p-6"
+        style={{ background: `linear-gradient(135deg, ${GREEN} 0%, ${BRIGHT_GREEN} 100%)` }}
+      >
+        {overviewQuery.isLoading || !overview ? (
+          <p className="py-10 text-center text-white/90">Loading the money story…</p>
+        ) : (
+          <>
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-white/70">
+                  {overview.period.label}
+                </p>
+                <h2 className="mt-1 text-2xl font-bold text-white">Follow the money</h2>
+                <p className="mt-1 max-w-md text-xs text-white/80">
+                  Deposits and refunds come in, withdrawals, bills and cards take money out, and
+                  whatever is left should still be sitting in the wallets.
+                </p>
+              </div>
+              <div
+                className={`flex items-center gap-3 rounded-2xl px-4 py-3 ${
+                  overview.check.status === "needs_review" ? "bg-amber-400/95" : "bg-white/20"
+                }`}
+              >
+                {overview.check.status === "needs_review" ? (
+                  <TriangleAlert className="h-7 w-7 text-amber-950" />
+                ) : (
+                  <BadgeCheck className="h-7 w-7 text-white" />
+                )}
+                <div>
+                  <p
+                    className={`text-[11px] font-semibold uppercase tracking-wide ${
+                      overview.check.status === "needs_review" ? "text-amber-950/70" : "text-white/75"
+                    }`}
+                  >
+                    Does it add up?
+                  </p>
+                  <p
+                    className={`text-lg font-bold ${
+                      overview.check.status === "needs_review" ? "text-amber-950" : "text-white"
+                    }`}
+                  >
+                    {overview.check.status_label}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-5 grid gap-3 sm:grid-cols-3">
+              <div className="rounded-2xl bg-white/15 px-4 py-3.5 backdrop-blur-sm">
+                <div className="flex items-center gap-2 text-white/80">
+                  <ArrowDownToLine className="h-4 w-4" />
+                  <p className="text-xs font-semibold">Money in</p>
+                </div>
+                <p className="mt-1 text-3xl font-bold text-white">
+                  {overview.money_in.deposited_display}
+                </p>
+                <p className="text-[11px] text-white/75">
+                  {overview.money_in.deposited_count} deposits
+                  {(overview.money_in.card_refunds ?? 0) > 0
+                    ? ` · ${overview.money_in.card_refunds_display} refunded`
+                    : ""}
+                </p>
+              </div>
+              <div className="rounded-2xl bg-white/15 px-4 py-3.5 backdrop-blur-sm">
+                <div className="flex items-center gap-2 text-white/80">
+                  <ArrowUpFromLine className="h-4 w-4" />
+                  <p className="text-xs font-semibold">Money out</p>
+                </div>
+                <p className="mt-1 text-3xl font-bold text-white">
+                  {overview.money_out.total_display}
+                </p>
+                <p className="text-[11px] text-white/75">Withdrawals, bills and cards</p>
+              </div>
+              <div className="rounded-2xl bg-white/15 px-4 py-3.5 backdrop-blur-sm">
+                <div className="flex items-center gap-2 text-white/80">
+                  <Wallet className="h-4 w-4" />
+                  <p className="text-xs font-semibold">Still held</p>
+                </div>
+                <p className="mt-1 text-3xl font-bold text-white">
+                  {overview.still_held.naira_balance_display}
+                </p>
+                <p className="text-[11px] text-white/75">
+                  Cards hold {overview.still_held.card_balance_usd_display}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {[
+                ["Fees collected", overview.fees_collected.amount_display],
+                ["Card spend (USD)", overview.cards.spent_usd_display],
+                [overview.check.net_flow_label, overview.check.net_flow_display],
+                ["Difference", overview.check.residual_display],
+              ].map(([label, value]) => (
+                <div key={label} className="rounded-2xl bg-white/10 px-4 py-2.5">
+                  <p className="text-[11px] font-medium text-white/70">{label}</p>
+                  <p className="text-base font-bold text-white">{value}</p>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
       </div>
 
       {overview ? (
         <div className="grid gap-4 lg:grid-cols-3">
           <div className="rounded-3xl bg-white p-5 shadow-sm lg:col-span-2">
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-base font-semibold text-gray-900">Where did money go?</h2>
+              <div>
+                <h2 className="text-base font-semibold text-gray-900">Where did money go?</h2>
+                <p className="text-xs text-gray-500">
+                  Every naira that left a wallet, {overview.money_out.total_display} in total
+                </p>
+              </div>
               <p className="text-xs text-gray-500">{overview.period.label}</p>
             </div>
-            <div className="space-y-3">
-              {overview.where_money_went.map((bar) => (
-                <div key={bar.key}>
-                  <div className="mb-1 flex justify-between text-sm text-gray-600">
-                    <span>{bar.label}</span>
-                    <span className="font-medium text-gray-900">
-                      {bar.amount_display} · {bar.pct}%
-                    </span>
+
+            <div className="grid gap-5 sm:grid-cols-5">
+              <div className="space-y-3.5 sm:col-span-3">
+                {overview.where_money_went.map((bar) => (
+                  <div key={bar.key}>
+                    <div className="mb-1.5 flex items-baseline justify-between gap-2 text-sm">
+                      <span className="flex items-center gap-2 text-gray-700">
+                        <span
+                          className="h-2.5 w-2.5 shrink-0 rounded-full"
+                          style={{ backgroundColor: OUTFLOW_COLORS[bar.key] ?? "#9CA3AF" }}
+                        />
+                        {bar.label}
+                      </span>
+                      <span className="font-semibold text-gray-900">
+                        {bar.amount_display}
+                        <span className="ml-1.5 text-xs font-normal text-gray-400">{bar.pct}%</span>
+                      </span>
+                    </div>
+                    <div className="h-2 overflow-hidden rounded-full bg-gray-100">
+                      <div
+                        className="h-full rounded-full transition-all"
+                        style={{
+                          width: `${Math.min(100, Math.max(0, bar.pct))}%`,
+                          backgroundColor: OUTFLOW_COLORS[bar.key] ?? "#9CA3AF",
+                        }}
+                      />
+                    </div>
                   </div>
-                  <div className="h-2.5 overflow-hidden rounded-full bg-gray-100">
-                    <div
-                      className="h-full rounded-full transition-all"
-                      style={{
-                        width: `${Math.min(100, Math.max(0, bar.pct))}%`,
-                        backgroundColor: GREEN,
+                ))}
+              </div>
+
+              <div className="flex items-center justify-center sm:col-span-2">
+                {outflowChart ? (
+                  <div className="h-44 w-44">
+                    <Doughnut
+                      data={outflowChart}
+                      options={{
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        cutout: "62%",
+                        plugins: {
+                          legend: { display: false },
+                          tooltip: {
+                            callbacks: {
+                              label: (ctx) =>
+                                `${ctx.label}: ₦${Number(ctx.parsed).toLocaleString()}`,
+                            },
+                          },
+                        },
                       }}
                     />
                   </div>
+                ) : (
+                  <p className="text-center text-sm text-gray-400">No outflows yet</p>
+                )}
+              </div>
+            </div>
+
+            <div className="mt-5 grid grid-cols-2 gap-3 text-sm sm:grid-cols-5">
+              {[
+                ["Withdrawals", overview.money_out.withdrawn_display],
+                ["Bills", overview.money_out.bill_payments_display],
+                ["Card creation", overview.money_out.card_creation_fees_display],
+                ["Card loads", overview.money_out.card_funding_display],
+                ["Card spend (USD)", overview.cards.spent_usd_display],
+              ].map(([label, value]) => (
+                <div key={label} className="rounded-xl bg-gray-50 px-3 py-2">
+                  <p className="text-xs text-gray-500">{label}</p>
+                  <p className="font-semibold">{value}</p>
                 </div>
               ))}
             </div>
-            <div className="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-5">
-              <div className="rounded-xl bg-gray-50 px-3 py-2">
-                <p className="text-xs text-gray-500">Withdrawals</p>
-                <p className="font-semibold">{overview.money_out.withdrawn_display}</p>
-              </div>
-              <div className="rounded-xl bg-gray-50 px-3 py-2">
-                <p className="text-xs text-gray-500">Bills</p>
-                <p className="font-semibold">{overview.money_out.bill_payments_display}</p>
-              </div>
-              <div className="rounded-xl bg-gray-50 px-3 py-2">
-                <p className="text-xs text-gray-500">Card creation</p>
-                <p className="font-semibold">{overview.money_out.card_creation_fees_display}</p>
-              </div>
-              <div className="rounded-xl bg-gray-50 px-3 py-2">
-                <p className="text-xs text-gray-500">Card loads</p>
-                <p className="font-semibold">{overview.money_out.card_funding_display}</p>
-              </div>
-              <div className="rounded-xl bg-gray-50 px-3 py-2">
-                <p className="text-xs text-gray-500">Card spend (USD)</p>
-                <p className="font-semibold">{overview.cards.spent_usd_display}</p>
-              </div>
-            </div>
           </div>
 
-          <div
-            className={`rounded-3xl p-5 shadow-sm ${
-              overview.check.status === "needs_review" ? "bg-amber-50" : "bg-emerald-50"
-            }`}
-          >
-            <div className="mb-2 flex items-center gap-2">
-              <Scale className="h-5 w-5" style={{ color: GREEN }} />
-              <h2 className="text-base font-semibold text-gray-900">Does this add up?</h2>
+          <div className="rounded-3xl bg-white p-5 shadow-sm">
+            <div
+              className={`rounded-2xl px-4 py-4 ${
+                overview.check.status === "needs_review" ? "bg-amber-50" : "bg-emerald-50"
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <span
+                  className={`flex h-11 w-11 items-center justify-center rounded-full ${
+                    overview.check.status === "needs_review" ? "bg-amber-200" : "bg-emerald-200"
+                  }`}
+                >
+                  {overview.check.status === "needs_review" ? (
+                    <TriangleAlert className="h-5 w-5 text-amber-900" />
+                  ) : (
+                    <BadgeCheck className="h-5 w-5 text-emerald-900" />
+                  )}
+                </span>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    Does this add up?
+                  </p>
+                  <p className="text-xl font-bold text-gray-900">{overview.check.status_label}</p>
+                </div>
+              </div>
+              <p className="mt-3 text-xs leading-relaxed text-gray-600">
+                {overview.check.explanation}
+              </p>
             </div>
-            <p className="text-2xl font-bold text-gray-900">{overview.check.status_label}</p>
-            <p className="mt-2 text-sm text-gray-700">Difference: {overview.check.residual_display}</p>
-            <p className="mt-3 text-xs leading-relaxed text-gray-600">{overview.check.explanation}</p>
-            <p className="mt-3 text-xs text-gray-600">
-              {overview.check.net_flow_label}: {overview.check.net_flow_display}
+
+            <dl className="mt-4 space-y-2.5 text-sm">
+              {[
+                ["Difference", overview.check.residual_display],
+                [overview.check.net_flow_label, overview.check.net_flow_display],
+                ["Fees collected", overview.fees_collected.amount_display],
+                ["Naira held now", overview.still_held.naira_balance_display],
+                ["Card balances", overview.still_held.card_balance_usd_display],
+              ].map(([label, value]) => (
+                <div key={label} className="flex items-baseline justify-between gap-3">
+                  <dt className="text-gray-500">{label}</dt>
+                  <dd className="text-right font-semibold text-gray-900">{value}</dd>
+                </div>
+              ))}
+            </dl>
+
+            <p className="mt-4 border-t border-gray-100 pt-3 text-xs text-gray-500">
+              {overview.crypto.helper}
             </p>
-            <p className="mt-3 text-xs text-gray-500">
-              Fees collected: {overview.fees_collected.amount_display}
-            </p>
-            <p className="mt-1 text-xs text-gray-500">{overview.crypto.helper}</p>
           </div>
         </div>
       ) : null}
@@ -735,14 +921,24 @@ const Reconciliation: React.FC = () => {
                   </td>
                 </tr>
               ) : (
-                tableRows.map((row, idx) => (
+                tableRows.map((row) => (
                   <tr
                     key={row.user_id}
-                    style={{ backgroundColor: idx % 2 === 0 ? TABLE_ROW_A : TABLE_ROW_B }}
+                    className="border-t border-gray-100 transition hover:bg-[#F5FBF4]"
                   >
                     <td className="px-4 py-3">
-                      <p className="font-medium text-gray-900">{row.display_name}</p>
-                      <p className="text-xs text-gray-500">{row.email}</p>
+                      <div className="flex items-center gap-3">
+                        <span
+                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
+                          style={{ backgroundColor: GREEN }}
+                        >
+                          {initials(row.display_name)}
+                        </span>
+                        <div className="min-w-0">
+                          <p className="truncate font-medium text-gray-900">{row.display_name}</p>
+                          <p className="truncate text-xs text-gray-500">{row.email}</p>
+                        </div>
+                      </div>
                     </td>
                     <td className="px-4 py-3 font-medium">{row.deposited_display}</td>
                     <td className="px-4 py-3">{row.withdrawn_display}</td>

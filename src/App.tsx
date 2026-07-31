@@ -8,6 +8,7 @@ import Dashboard from "./pages/dashboard/Dashboard";
 import UserManagement from "./pages/userManagement/UserManagement";
 import UserProfile from "./pages/userManagement/UserProfile";
 import Transaction from "./pages/transaction/Transaction";
+import DailyActivity from "./pages/dailyActivity/DailyActivity";
 import KYC from "./pages/kyc/KYC";
 import VirtualCards from "./pages/virtualCards/VirtualCards";
 import WalletManagement from "./pages/walletManagement/WalletManagement";
@@ -42,6 +43,7 @@ const App: React.FC = () => {
                 <Route path="user/management" element={<UserManagement />} />
                 <Route path="user/management/profile/:userId" element={<UserProfile />} />
                 <Route path="transaction" element={<Transaction />} />
+                <Route path="daily-activity" element={<DailyActivity />} />
                 <Route path="reconciliation" element={<Reconciliation />} />
                 <Route path="kyc" element={<KYC />} />
                 <Route path="virtual-cards" element={<VirtualCards />} />
