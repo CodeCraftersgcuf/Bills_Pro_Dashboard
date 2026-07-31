@@ -59,6 +59,9 @@ export type ReconciliationCheck = {
   threshold_ngn: number;
   explanation: string;
   all_time: boolean;
+  net_flow: number;
+  net_flow_display: string;
+  net_flow_label: string;
 };
 
 export type WhereMoneyWentBar = {

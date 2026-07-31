@@ -308,6 +308,9 @@ function MoneyStoryPanel({
                 <p className="font-semibold">Does this add up? — {story.check.status_label}</p>
                 <p className="mt-1 text-xs opacity-80">{story.check.explanation}</p>
                 <p className="mt-2 font-medium">Difference: {story.check.residual_display}</p>
+                <p className="mt-1 text-xs opacity-80">
+                  {story.check.net_flow_label}: {story.check.net_flow_display}
+                </p>
               </div>
 
               <section>
@@ -667,6 +670,9 @@ const Reconciliation: React.FC = () => {
             <p className="text-2xl font-bold text-gray-900">{overview.check.status_label}</p>
             <p className="mt-2 text-sm text-gray-700">Difference: {overview.check.residual_display}</p>
             <p className="mt-3 text-xs leading-relaxed text-gray-600">{overview.check.explanation}</p>
+            <p className="mt-3 text-xs text-gray-600">
+              {overview.check.net_flow_label}: {overview.check.net_flow_display}
+            </p>
             <p className="mt-3 text-xs text-gray-500">
               Fees collected: {overview.fees_collected.amount_display}
             </p>
