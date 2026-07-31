@@ -1,4 +1,5 @@
 import React, { useDeferredValue, useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
   Chart as ChartJS,
@@ -703,7 +704,12 @@ const DailyActivity: React.FC = () => {
                       className="flex items-center justify-between gap-3 rounded-2xl bg-gray-50 px-4 py-3"
                     >
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-medium text-gray-900">{t.user_name}</p>
+                        <Link
+                          to={`/user/management/profile/${t.user_id}`}
+                          className="truncate text-sm font-medium text-gray-900 hover:text-[#1B800F] hover:underline"
+                        >
+                          {t.user_name}
+                        </Link>
                         <p className="text-xs text-gray-500">
                           {t.time} · {t.type_label}
                         </p>
@@ -817,8 +823,20 @@ const DailyActivity: React.FC = () => {
                       {r.time}
                     </td>
                     <td className="px-4 py-3">
-                      <p className="font-medium text-gray-900">{r.user_name}</p>
-                      <p className="text-xs text-gray-500">{r.user_email}</p>
+                      <Link
+                        to={`/user/management/profile/${r.user_id}`}
+                        className="block font-medium text-gray-900 hover:text-[#1B800F] hover:underline"
+                      >
+                        {r.user_name}
+                      </Link>
+                      {r.user_email ? (
+                        <Link
+                          to={`/user/management/profile/${r.user_id}`}
+                          className="block text-xs text-gray-500 hover:text-[#1B800F]"
+                        >
+                          {r.user_email}
+                        </Link>
+                      ) : null}
                     </td>
                     <td className="px-4 py-3">
                       <span className="inline-flex items-center gap-1.5 font-medium text-gray-800">
