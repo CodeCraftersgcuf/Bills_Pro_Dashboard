@@ -13,6 +13,7 @@ import {
   Store,
   LineChart,
   PieChart,
+  Scale,
   Headphones,
   Bell,
   Construction,
@@ -31,6 +32,7 @@ export const Sidebar_links: SidebarLinkItem[] = [
   { name: "Dashboard", link: "/dashboard", icon: LayoutGrid, sublinks: [] },
   { name: "User Management", link: "/user/management", icon: UserRound, sublinks: [] },
   { name: "Transactions", link: "/transaction", icon: Receipt, sublinks: [] },
+  { name: "Reconciliation", link: "/reconciliation", icon: Scale, sublinks: [] },
   { name: "KYC", link: "/kyc", icon: ShieldCheck, sublinks: [] },
   { name: "Virtual Cards", link: "/virtual-cards", icon: CreditCard, sublinks: [] },
   {

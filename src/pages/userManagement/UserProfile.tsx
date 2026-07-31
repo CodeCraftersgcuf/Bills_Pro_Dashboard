@@ -20,6 +20,7 @@ import WithdrawalAccountsModal from "../../components/WithdrawalAccountsModal";
 import UserProfileWalletTab from "../../components/UserProfileWalletTab";
 import UserProfileVirtualCardsTab from "../../components/UserProfileVirtualCardsTab";
 import UserProfileTransactionsTab from "../../components/UserProfileTransactionsTab";
+import UserMoneySummaryStrip from "../../components/UserMoneySummaryStrip";
 import { avatarUrlForName } from "../../utils/avatarUrl";
 import { humanizeApiLabelOrDash } from "../../utils/humanizeApiLabel";
 
@@ -345,6 +346,8 @@ const UserProfile: React.FC = () => {
           {actionNotice}
         </div>
       ) : null}
+
+      {userId ? <UserMoneySummaryStrip userId={userId} /> : null}
 
       {tab === "details" && (
         <>

@@ -19,6 +19,7 @@ import MasterWallet from "./pages/masterWallet/MasterWallet";
 import ReceivedCrypto from "./pages/receivedCrypto/ReceivedCrypto";
 import CryptoVendors from "./pages/cryptoVendors/CryptoVendors";
 import ProfitCenter from "./pages/profit/ProfitCenter";
+import Reconciliation from "./pages/reconciliation/Reconciliation";
 import Analytics from "./pages/analytics/Analytics";
 import Support from "./pages/support/Support";
 import Notification from "./pages/notification/Notification";
@@ -41,6 +42,7 @@ const App: React.FC = () => {
                 <Route path="user/management" element={<UserManagement />} />
                 <Route path="user/management/profile/:userId" element={<UserProfile />} />
                 <Route path="transaction" element={<Transaction />} />
+                <Route path="reconciliation" element={<Reconciliation />} />
                 <Route path="kyc" element={<KYC />} />
                 <Route path="virtual-cards" element={<VirtualCards />} />
                 <Route path="legal/app-documents" element={<AppLegalDocuments />} />

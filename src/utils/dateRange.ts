@@ -1,4 +1,4 @@
-export type DateRangePreset = "all" | "7d" | "30d" | "90d" | "12m" | "custom";
+export type DateRangePreset = "all" | "today" | "7d" | "30d" | "90d" | "12m" | "custom";
 
 function toYmdLocal(d: Date): string {
   const y = d.getFullYear();
@@ -21,6 +21,10 @@ export function presetToFromTo(
 ): { from?: string; to?: string } {
   if (preset === "all") {
     return {};
+  }
+  if (preset === "today") {
+    const today = toYmdLocal(new Date());
+    return { from: today, to: today };
   }
   if (preset === "custom") {
     const f = custom?.from?.trim();
