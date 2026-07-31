@@ -189,6 +189,122 @@ function MiniStat({
   );
 }
 
+function StatusPanel({
+  report,
+  statusFilter,
+  onSelect,
+}: {
+  report: DaybookReport;
+  statusFilter: string;
+  onSelect: (status: string) => void;
+}) {
+  const totalCount = report.statuses.reduce((sum, s) => sum + s.count, 0);
+  const settled = report.statuses.find((s) => s.status === "completed")?.count ?? 0;
+  const unsettled = totalCount - settled;
+
+  return (
+    <div className="flex flex-col rounded-3xl bg-white p-5 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-base font-semibold text-gray-900">How did they land?</h2>
+          <p className="text-xs text-gray-500">
+            Tap a status to filter the list below. Pending and failed money is what needs chasing.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => onSelect("all")}
+          className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${
+            statusFilter === "all" ? "text-white" : "bg-gray-100 text-gray-600"
+          }`}
+          style={statusFilter === "all" ? { backgroundColor: GREEN } : undefined}
+        >
+          All
+        </button>
+      </div>
+
+      {totalCount === 0 ? (
+        <p className="mt-4 rounded-2xl bg-gray-50 px-4 py-8 text-center text-sm text-gray-500">
+          No Naira transactions on this day.
+        </p>
+      ) : (
+        <>
+          <div className="mt-4 space-y-2">
+            {report.statuses.map((s) => {
+              const empty = s.count === 0;
+              const selected = statusFilter === s.status;
+
+              return (
+                <button
+                  key={s.status}
+                  type="button"
+                  disabled={empty}
+                  onClick={() => onSelect(s.status)}
+                  className={`flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3 text-left transition ${
+                    empty
+                      ? "cursor-default bg-gray-50/60"
+                      : selected
+                        ? "bg-gray-50 ring-2 ring-[#1B800F]/40"
+                        : "bg-gray-50 hover:bg-gray-100"
+                  }`}
+                >
+                  <span className="flex items-center gap-2">
+                    <span
+                      className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
+                        empty ? "bg-gray-100 text-gray-400" : statusPill(s.status)
+                      }`}
+                    >
+                      {s.label}
+                    </span>
+                    <span className={`text-xs ${empty ? "text-gray-400" : "text-gray-500"}`}>
+                      {s.count} txs
+                    </span>
+                  </span>
+                  {empty ? (
+                    <span className="text-xs text-gray-400">none</span>
+                  ) : (
+                    <span className="text-right text-xs leading-5">
+                      <span className="font-semibold" style={{ color: IN_COLOR }}>
+                        {s.in_display} in
+                      </span>
+                      <br />
+                      <span className="font-semibold" style={{ color: OUT_COLOR }}>
+                        {s.out_display} out
+                      </span>
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          <p
+            className={`mt-3 rounded-2xl px-4 py-2.5 text-xs ${
+              unsettled === 0 ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-900"
+            }`}
+          >
+            {unsettled === 0
+              ? `All ${totalCount} transactions settled — nothing pending or failed.`
+              : `${unsettled} of ${totalCount} transactions did not complete.`}
+          </p>
+        </>
+      )}
+
+      {report.notes.lines.length > 0 ? (
+        <div className="mt-3 rounded-2xl bg-amber-50 px-4 py-3">
+          <p className="text-xs font-semibold text-amber-900">Book-keeping notes</p>
+          {report.notes.lines.map((n) => (
+            <p key={n.type} className="mt-1 text-xs text-amber-800">
+              {n.label}: {n.amount_display} ({n.count})
+            </p>
+          ))}
+          <p className="mt-1 text-[11px] text-amber-700">{report.notes.helper}</p>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function exportDayCsv(date: string, rows: DaybookTransaction[]): void {
   if (rows.length === 0) return;
   downloadCsv(
@@ -515,58 +631,11 @@ const DailyActivity: React.FC = () => {
               <HourlyChart report={report} />
             </div>
 
-            <div className="rounded-3xl bg-white p-5 shadow-sm">
-              <h2 className="text-base font-semibold text-gray-900">How did they land?</h2>
-              <p className="text-xs text-gray-500">
-                Tap a status to filter the list below. Pending and failed money is what needs
-                chasing.
-              </p>
-              <div className="mt-4 space-y-2">
-                {report.statuses.length === 0 ? (
-                  <p className="rounded-2xl bg-gray-50 px-4 py-6 text-center text-sm text-gray-500">
-                    No Naira transactions on this day.
-                  </p>
-                ) : (
-                  report.statuses.map((s) => (
-                    <button
-                      key={s.status}
-                      type="button"
-                      onClick={() => setStatusFilter(s.status)}
-                      className={`flex w-full items-center justify-between rounded-2xl px-4 py-3 text-left transition ${
-                        statusFilter === s.status
-                          ? "ring-2 ring-[#1B800F]/40"
-                          : "hover:bg-gray-50"
-                      } bg-gray-50`}
-                    >
-                      <span className="flex items-center gap-2">
-                        <span
-                          className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${statusPill(
-                            s.status
-                          )}`}
-                        >
-                          {s.label}
-                        </span>
-                        <span className="text-xs text-gray-500">{s.count} txs</span>
-                      </span>
-                      <span className="text-sm font-semibold text-gray-900">
-                        {s.amount_display}
-                      </span>
-                    </button>
-                  ))
-                )}
-              </div>
-              {report.notes.lines.length > 0 ? (
-                <div className="mt-4 rounded-2xl bg-amber-50 px-4 py-3">
-                  <p className="text-xs font-semibold text-amber-900">Book-keeping notes</p>
-                  {report.notes.lines.map((n) => (
-                    <p key={n.type} className="mt-1 text-xs text-amber-800">
-                      {n.label}: {n.amount_display} ({n.count})
-                    </p>
-                  ))}
-                  <p className="mt-1 text-[11px] text-amber-700">{report.notes.helper}</p>
-                </div>
-              ) : null}
-            </div>
+            <StatusPanel
+              report={report}
+              statusFilter={statusFilter}
+              onSelect={setStatusFilter}
+            />
           </div>
 
           <div className="grid gap-4 lg:grid-cols-2">

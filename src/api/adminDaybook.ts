@@ -39,8 +39,10 @@ export type DaybookStatusLine = {
   status: string;
   label: string;
   count: number;
-  amount: number;
-  amount_display: string;
+  in_amount: number;
+  in_display: string;
+  out_amount: number;
+  out_display: string;
 };
 
 export type DaybookHour = {
