@@ -151,6 +151,70 @@ export type ReconciliationUserStory = ReconciliationOverview & {
   };
 };
 
+export type LedgerNairaRow = {
+  id: string;
+  wallet: "naira";
+  wallet_label: string;
+  at: string | null;
+  type: string;
+  label: string;
+  category: string | null;
+  status: string;
+  direction: "in" | "out" | "note" | "unknown";
+  amount: number;
+  amount_display: string;
+  fee: number;
+  fee_display: string;
+  total: number;
+  total_display: string;
+  signed_display: string;
+  counts_towards_balance: boolean;
+  balance_after: number | null;
+  balance_after_display: string | null;
+  description: string;
+  reference: string | null;
+};
+
+export type LedgerCardRow = {
+  id: string;
+  wallet: "card";
+  wallet_label: string;
+  virtual_card_id: number;
+  at: string | null;
+  type: string;
+  label: string;
+  status: string;
+  direction: "in" | "out" | "info";
+  amount: number;
+  amount_display: string;
+  fee: number;
+  fee_display: string;
+  total: number;
+  total_display: string;
+  description: string;
+  reference: string | null;
+  is_decline_fee: boolean;
+};
+
+export type ReconciliationUserLedger = {
+  user: { user_id: number; display_name: string; email: string | null };
+  period: ReconciliationPeriod;
+  naira_rows: LedgerNairaRow[];
+  card_rows: LedgerCardRow[];
+  totals: {
+    naira_rows_count: number;
+    card_rows_count: number;
+    ledger_balance: number;
+    ledger_balance_display: string;
+    wallet_balance: number;
+    wallet_balance_display: string;
+    drift: number;
+    drift_display: string;
+    drift_note: string;
+    unmapped_types: Record<string, number>;
+  };
+};
+
 export type ReconciliationQuery = {
   from?: string;
   to?: string;
@@ -177,4 +241,14 @@ export function fetchReconciliationUserStory(
   params?: { from?: string; to?: string }
 ): Promise<ReconciliationUserStory> {
   return apiGet<ReconciliationUserStory>(`api/admin/reconciliation/users/${userId}`, params);
+}
+
+export function fetchReconciliationUserLedger(
+  userId: number,
+  params?: { from?: string; to?: string }
+): Promise<ReconciliationUserLedger> {
+  return apiGet<ReconciliationUserLedger>(
+    `api/admin/reconciliation/users/${userId}/ledger`,
+    params
+  );
 }

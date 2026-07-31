@@ -13,8 +13,10 @@ import {
 import StatCard from "../../components/StatCard";
 import {
   fetchReconciliationOverview,
+  fetchReconciliationUserLedger,
   fetchReconciliationUserStory,
   fetchReconciliationUsers,
+  type ReconciliationUserLedger,
   type ReconciliationUserRow,
   type ReconciliationUserStory,
 } from "../../api/adminReconciliation";
@@ -82,12 +84,184 @@ function exportReconUsersCsv(rows: ReconciliationUserRow[]): void {
   );
 }
 
+function statusPill(status: string): string {
+  const s = status.toLowerCase();
+  if (s === "completed") return "bg-emerald-100 text-emerald-800";
+  if (s === "pending") return "bg-amber-100 text-amber-800";
+  if (s === "failed" || s === "cancelled") return "bg-rose-100 text-rose-800";
+  return "bg-gray-100 text-gray-700";
+}
+
+function LedgerSection({ ledger, loading }: { ledger: ReconciliationUserLedger | null; loading: boolean }) {
+  const [tab, setTab] = useState<"naira" | "card">("naira");
+
+  if (loading) {
+    return <p className="text-sm text-gray-500">Loading complete ledger…</p>;
+  }
+  if (!ledger) return null;
+
+  const { totals } = ledger;
+  const driftClean = Math.abs(totals.drift) < 1;
+
+  return (
+    <section>
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-sm font-semibold text-gray-800">Complete ledger</h3>
+        <div className="flex gap-1 rounded-full bg-gray-100 p-1">
+          <button
+            type="button"
+            onClick={() => setTab("naira")}
+            className={`rounded-full px-3 py-1 text-xs font-semibold ${
+              tab === "naira" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"
+            }`}
+          >
+            Naira wallet ({totals.naira_rows_count})
+          </button>
+          <button
+            type="button"
+            onClick={() => setTab("card")}
+            className={`rounded-full px-3 py-1 text-xs font-semibold ${
+              tab === "card" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"
+            }`}
+          >
+            Card USD ({totals.card_rows_count})
+          </button>
+        </div>
+      </div>
+
+      <div
+        className={`mb-3 rounded-xl px-4 py-2.5 text-xs ${
+          driftClean ? "bg-emerald-50 text-emerald-900" : "bg-amber-50 text-amber-900"
+        }`}
+      >
+        Ledger adds up to {totals.ledger_balance_display} · wallet holds{" "}
+        {totals.wallet_balance_display}
+        {driftClean ? " — matches." : ` — unexplained ${totals.drift_display}.`}
+      </div>
+
+      {tab === "naira" ? (
+        <div className="overflow-x-auto rounded-xl border border-gray-100">
+          <table className="min-w-full text-left text-xs">
+            <thead className="bg-gray-50 text-[11px] uppercase tracking-wide text-gray-500">
+              <tr>
+                <th className="px-3 py-2">Date</th>
+                <th className="px-3 py-2">What happened</th>
+                <th className="px-3 py-2 text-right">Amount</th>
+                <th className="px-3 py-2 text-right">Fee</th>
+                <th className="px-3 py-2 text-right">Balance after</th>
+              </tr>
+            </thead>
+            <tbody>
+              {ledger.naira_rows.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-3 py-6 text-center text-gray-500">
+                    No Naira activity in this period.
+                  </td>
+                </tr>
+              ) : (
+                ledger.naira_rows.map((r) => (
+                  <tr key={r.id} className="border-t border-gray-100 align-top">
+                    <td className="whitespace-nowrap px-3 py-2 text-gray-500">
+                      {r.at ? r.at.slice(0, 16).replace("T", " ") : "—"}
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-gray-900">{r.label}</span>
+                        <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${statusPill(r.status)}`}>
+                          {r.status}
+                        </span>
+                      </div>
+                      {r.description ? (
+                        <p className="mt-0.5 text-[11px] text-gray-500">{r.description}</p>
+                      ) : null}
+                    </td>
+                    <td
+                      className={`whitespace-nowrap px-3 py-2 text-right font-semibold ${
+                        r.direction === "in" ? "text-emerald-700" : "text-gray-900"
+                      }`}
+                    >
+                      {r.signed_display}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2 text-right text-gray-500">
+                      {r.fee > 0 ? r.fee_display : "—"}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2 text-right text-gray-700">
+                      {r.balance_after_display ?? "—"}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-xl border border-gray-100">
+          <table className="min-w-full text-left text-xs">
+            <thead className="bg-gray-50 text-[11px] uppercase tracking-wide text-gray-500">
+              <tr>
+                <th className="px-3 py-2">Date</th>
+                <th className="px-3 py-2">Card activity</th>
+                <th className="px-3 py-2 text-right">Amount</th>
+                <th className="px-3 py-2 text-right">Fee</th>
+              </tr>
+            </thead>
+            <tbody>
+              {ledger.card_rows.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="px-3 py-6 text-center text-gray-500">
+                    No card activity in this period.
+                  </td>
+                </tr>
+              ) : (
+                ledger.card_rows.map((r) => (
+                  <tr key={r.id} className="border-t border-gray-100 align-top">
+                    <td className="whitespace-nowrap px-3 py-2 text-gray-500">
+                      {r.at ? r.at.slice(0, 16).replace("T", " ") : "—"}
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-medium text-gray-900">{r.label}</span>
+                        <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${statusPill(r.status)}`}>
+                          {r.status}
+                        </span>
+                        {r.is_decline_fee ? (
+                          <span className="rounded-full bg-rose-100 px-1.5 py-0.5 text-[10px] font-semibold text-rose-800">
+                            decline fee
+                          </span>
+                        ) : null}
+                      </div>
+                      {r.description ? (
+                        <p className="mt-0.5 text-[11px] text-gray-500">{r.description}</p>
+                      ) : null}
+                      <p className="text-[10px] text-gray-400">{r.wallet_label}</p>
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2 text-right font-semibold text-gray-900">
+                      {r.total_display}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2 text-right text-gray-500">
+                      {r.fee > 0 ? r.fee_display : "—"}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
 function MoneyStoryPanel({
   story,
+  ledger,
+  ledgerLoading,
   onClose,
   loading,
 }: {
   story: ReconciliationUserStory | null;
+  ledger: ReconciliationUserLedger | null;
+  ledgerLoading: boolean;
   onClose: () => void;
   loading: boolean;
 }) {
@@ -96,7 +270,7 @@ function MoneyStoryPanel({
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-black/40" onClick={onClose}>
       <div
-        className="flex h-full w-full max-w-lg flex-col bg-white shadow-2xl"
+        className="flex h-full w-full max-w-3xl flex-col bg-white shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
@@ -239,6 +413,8 @@ function MoneyStoryPanel({
                 </section>
               ) : null}
 
+              <LedgerSection ledger={ledger} loading={ledgerLoading} />
+
               <section className="rounded-xl border border-dashed border-gray-200 px-4 py-3">
                 <p className="text-xs font-medium text-gray-500">Crypto (secondary)</p>
                 <p className="mt-1 text-sm text-gray-700">
@@ -318,6 +494,12 @@ const Reconciliation: React.FC = () => {
   const storyQuery = useQuery({
     queryKey: ["admin", "recon-user", selectedUserId, from, to],
     queryFn: () => fetchReconciliationUserStory(selectedUserId!, { from, to }),
+    enabled: hasToken && selectedUserId != null,
+  });
+
+  const ledgerQuery = useQuery({
+    queryKey: ["admin", "recon-user-ledger", selectedUserId, from, to],
+    queryFn: () => fetchReconciliationUserLedger(selectedUserId!, { from, to }),
     enabled: hasToken && selectedUserId != null,
   });
 
@@ -620,6 +802,8 @@ const Reconciliation: React.FC = () => {
       {selectedUserId != null ? (
         <MoneyStoryPanel
           story={storyQuery.data ?? null}
+          ledger={ledgerQuery.data ?? null}
+          ledgerLoading={ledgerQuery.isLoading}
           loading={storyQuery.isLoading}
           onClose={closeUser}
         />
