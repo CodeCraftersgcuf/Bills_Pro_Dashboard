@@ -75,7 +75,13 @@ const Rates: React.FC<RatesProps> = ({ visaOnly = false }) => {
   const allRows = useMemo(() => {
     const raw = ratesQ.data?.rates ?? [];
     if (!visaOnly) return raw;
-    return raw.filter((r) => r.service_key === "visa_creation" || r.service_key === "visa_fund");
+    return raw.filter(
+      (r) =>
+        r.service_key === "visa_creation" ||
+        r.service_key === "visa_fund" ||
+        r.service_key === "visa_terminate" ||
+        r.service_key === "visa_decline_fee"
+    );
   }, [ratesQ.data?.rates, visaOnly]);
 
   const rows = useMemo(() => {
@@ -147,7 +153,15 @@ const Rates: React.FC<RatesProps> = ({ visaOnly = false }) => {
     if (tab === "fiat") return m.fiat.services;
     if (tab === "crypto") return m.crypto.services;
     const list = m.virtual_card.services;
-    return visaOnly ? list.filter((s) => s.key === "visa_creation" || s.key === "visa_fund") : list;
+    return visaOnly
+      ? list.filter(
+          (s) =>
+            s.key === "visa_creation" ||
+            s.key === "visa_fund" ||
+            s.key === "visa_terminate" ||
+            s.key === "visa_decline_fee"
+        )
+      : list;
   }, [metaQ.data, tab, visaOnly]);
 
   const errMsg = (e: unknown) => (e instanceof ApiError ? e.message : e instanceof Error ? e.message : "Request failed");

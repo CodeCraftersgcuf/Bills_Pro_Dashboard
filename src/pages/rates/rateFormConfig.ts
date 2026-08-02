@@ -10,7 +10,8 @@ export type RateFormProfile =
   | "crypto_send"
   | "vc_creation"
   | "vc_fund"
-  | "vc_decline";
+  | "vc_decline"
+  | "vc_terminate";
 
 export type FieldKey =
   | "exchangeRate"
@@ -68,6 +69,7 @@ export function resolveRateFormProfile(
     if (serviceKey === "creation" || serviceKey === "visa_creation") return "vc_creation";
     if (serviceKey === "fund" || serviceKey === "visa_fund") return "vc_fund";
     if (serviceKey === "decline_fee" || serviceKey === "visa_decline_fee") return "vc_decline";
+    if (serviceKey === "terminate" || serviceKey === "visa_terminate") return "vc_terminate";
   }
   return null;
 }
@@ -243,6 +245,28 @@ const PROFILE_CONFIG: Record<RateFormProfile, ProfileConfig> = {
     ],
     meta: [{ key: "displayLabel", label: "Catalog name", placeholder: "Mastercard Decline Fee (2nd decline)" }],
   },
+  vc_terminate: {
+    title: "Card termination refund",
+    description:
+      "Sell rate used when a user terminates their card. Remaining balance (after the termination fee) is converted to Naira at this rate.",
+    customer: [
+      {
+        key: "exchangeRate",
+        label: "Refund sell rate (NGN per $1)",
+        placeholder: "1420",
+        colSpan: 2,
+        hint: "Usually lower than the card funding rate to protect margin on refunds.",
+      },
+      {
+        key: "feeUsd",
+        label: "Termination fee (USD)",
+        placeholder: "1",
+        hint: "Deducted from the card balance before refund (minimum balance required).",
+      },
+    ],
+    provider: [],
+    meta: [{ key: "displayLabel", label: "Catalog name", placeholder: "Visa Card Termination Refund" }],
+  },
 };
 
 export function getProfileConfig(profile: RateFormProfile): ProfileConfig {
@@ -259,6 +283,8 @@ const PDF_PRIMARY_SLUGS = new Set([
   "virtual_card|fund|||",
   "virtual_card|visa_decline_fee|||",
   "virtual_card|decline_fee|||",
+  "virtual_card|visa_terminate|||",
+  "virtual_card|terminate|||",
   "crypto|buy|||",
   "crypto|sell|||",
   "crypto|deposit|||",
