@@ -97,7 +97,6 @@ export type DaybookReport = {
     direction: "in" | "out";
     helper: string;
   };
-  fees_collected: { amount: number; amount_display: string; helper: string };
   notes: { lines: DaybookLine[]; helper: string };
   cards: {
     spend_usd: number;
@@ -126,7 +125,6 @@ export type DaybookReport = {
     label: string;
     money_in: DaybookDelta;
     money_out: DaybookDelta;
-    fees: DaybookDelta;
     previous_money_in_display: string;
     previous_money_out_display: string;
   };

@@ -36,6 +36,8 @@ export const Sidebar_links: SidebarLinkItem[] = [
   { name: "Daily activity", link: "/daily-activity", icon: CalendarDays, sublinks: [] },
   { name: "Reconciliation", link: "/reconciliation", icon: Scale, sublinks: [] },
   { name: "KYC", link: "/kyc", icon: ShieldCheck, sublinks: [] },
+  { name: "Decline fees", link: "/card-decline-fees", icon: CreditCard, sublinks: [] },
+  { name: "Pagocards wallet", link: "/pagocards-wallet", icon: WalletCards, sublinks: [] },
   { name: "Virtual Cards", link: "/virtual-cards", icon: CreditCard, sublinks: [] },
   {
     name: "Terms & privacy (mobile app)",
