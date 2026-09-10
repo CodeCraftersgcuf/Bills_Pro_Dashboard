@@ -33,6 +33,9 @@ export type ReconciliationMoneyOut = {
   card_funding: number;
   card_funding_display: string;
   card_funding_count: number;
+  card_decline_fees: number;
+  card_decline_fees_display: string;
+  card_decline_fee_count: number;
   helper: string;
 };
 
@@ -119,6 +122,8 @@ export type ReconciliationUserRow = {
   card_funding_display: string;
   card_creation_fees: number;
   card_creation_fees_display: string;
+  card_decline_fees: number;
+  card_decline_fees_display: string;
   card_spent_usd: number;
   card_spent_usd_display: string;
   naira_balance: number;

@@ -11,6 +11,8 @@ import {
   type ReferralActionSettings,
   type ReferralSettings,
 } from "../../api/adminReferral";
+import AdminUserSearchSelect from "../../components/AdminUserSearchSelect";
+import type { AdminUserRow } from "../../api/adminUsers";
 
 const GREEN = "#1B800F";
 
@@ -26,10 +28,10 @@ const Referrals: React.FC = () => {
   const qc = useQueryClient();
   const [tab, setTab] = useState<"settings" | "list">("settings");
   const [search, setSearch] = useState("");
-  const [manualUserId, setManualUserId] = useState("");
+  const [manualUser, setManualUser] = useState<AdminUserRow | null>(null);
   const [manualAmount, setManualAmount] = useState("");
   const [manualReason, setManualReason] = useState("");
-  const [editUserId, setEditUserId] = useState("");
+  const [editUser, setEditUser] = useState<AdminUserRow | null>(null);
   const [editCode, setEditCode] = useState("");
 
   const settingsQ = useQuery({
@@ -50,6 +52,14 @@ const Referrals: React.FC = () => {
     if (settingsQ.data) setDraft(settingsQ.data);
   }, [settingsQ.data]);
 
+  React.useEffect(() => {
+    if (editUser) {
+      setEditCode(editUser.referral_code ?? "");
+    } else {
+      setEditCode("");
+    }
+  }, [editUser]);
+
   const saveSettingsMut = useMutation({
     mutationFn: () => {
       if (!draft) throw new Error("Nothing to save");
@@ -67,12 +77,14 @@ const Referrals: React.FC = () => {
   });
 
   const manualMut = useMutation({
-    mutationFn: () =>
-      grantManualReferralReward({
-        user_id: Number(manualUserId),
+    mutationFn: () => {
+      if (!manualUser) throw new Error("Select a user first.");
+      return grantManualReferralReward({
+        user_id: manualUser.id,
         amount_ngn: Number(manualAmount),
         reason: manualReason.trim(),
-      }),
+      });
+    },
     onSuccess: async () => {
       setManualAmount("");
       setManualReason("");
@@ -81,13 +93,18 @@ const Referrals: React.FC = () => {
   });
 
   const editCodeMut = useMutation({
-    mutationFn: () =>
-      updateReferralUser(Number(editUserId), {
+    mutationFn: () => {
+      if (!editUser) throw new Error("Select a user first.");
+      return updateReferralUser(editUser.id, {
         referral_code: editCode.trim() || null,
-      }),
-    onSuccess: async () => {
-      setEditCode("");
+      });
+    },
+    onSuccess: async (data) => {
+      setEditUser((prev) =>
+        prev ? { ...prev, referral_code: data.referral_code ?? editCode.trim().toUpperCase() } : prev
+      );
       await qc.invalidateQueries({ queryKey: ["admin", "referral-relationships"] });
+      await qc.invalidateQueries({ queryKey: ["admin", "users-picker"] });
     },
   });
 
@@ -298,11 +315,10 @@ const Referrals: React.FC = () => {
             <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
               <h3 className="mb-3 font-medium text-gray-900">Manual reward (earnings balance)</h3>
               <div className="space-y-2">
-                <input
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-                  placeholder="User ID"
-                  value={manualUserId}
-                  onChange={(e) => setManualUserId(e.target.value)}
+                <AdminUserSearchSelect
+                  label="Search and select user"
+                  selected={manualUser}
+                  onSelect={setManualUser}
                 />
                 <input
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
@@ -318,9 +334,9 @@ const Referrals: React.FC = () => {
                 />
                 <button
                   type="button"
-                  disabled={manualMut.isPending}
+                  disabled={manualMut.isPending || !manualUser}
                   onClick={() => manualMut.mutate()}
-                  className="rounded-lg bg-gray-900 px-3 py-2 text-sm text-white"
+                  className="rounded-lg bg-gray-900 px-3 py-2 text-sm text-white disabled:opacity-50"
                 >
                   Credit reward
                 </button>
@@ -334,23 +350,23 @@ const Referrals: React.FC = () => {
             <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
               <h3 className="mb-3 font-medium text-gray-900">Edit referral code</h3>
               <div className="space-y-2">
-                <input
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-                  placeholder="User ID"
-                  value={editUserId}
-                  onChange={(e) => setEditUserId(e.target.value)}
+                <AdminUserSearchSelect
+                  label="Search and select user"
+                  selected={editUser}
+                  onSelect={setEditUser}
                 />
                 <input
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
                   placeholder="New code (e.g. PETERVIP)"
                   value={editCode}
                   onChange={(e) => setEditCode(e.target.value)}
+                  disabled={!editUser}
                 />
                 <button
                   type="button"
-                  disabled={editCodeMut.isPending}
+                  disabled={editCodeMut.isPending || !editUser}
                   onClick={() => editCodeMut.mutate()}
-                  className="rounded-lg bg-gray-900 px-3 py-2 text-sm text-white"
+                  className="rounded-lg bg-gray-900 px-3 py-2 text-sm text-white disabled:opacity-50"
                 >
                   Update code
                 </button>

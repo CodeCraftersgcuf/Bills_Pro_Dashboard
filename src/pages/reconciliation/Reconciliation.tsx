@@ -46,6 +46,7 @@ const OUTFLOW_COLORS: Record<string, string> = {
   bill_payments: "#21D721",
   card_funding: "#0E5C08",
   card_creation_fees: "#E08707",
+  card_decline_fees: "#C62828",
 };
 
 const DATE_PRESETS: { id: DateRangePreset; label: string }[] = [
@@ -71,6 +72,7 @@ function exportReconUsersCsv(rows: ReconciliationUserRow[]): void {
       "bill_payments",
       "card_creation_fees",
       "card_funding",
+      "card_decline_fees",
       "card_spent_usd",
       "naira_balance",
       "card_balance_usd",
@@ -87,6 +89,7 @@ function exportReconUsersCsv(rows: ReconciliationUserRow[]): void {
       r.bill_payments,
       r.card_creation_fees,
       r.card_funding,
+      r.card_decline_fees ?? 0,
       r.card_spent_usd,
       r.naira_balance,
       r.card_balance_usd,
@@ -362,6 +365,7 @@ function MoneyStoryPanel({
                     ["Bill payments", story.money_out.bill_payments_display],
                     ["Loaded onto cards", story.money_out.card_funding_display],
                     ["Card creation fees", story.money_out.card_creation_fees_display],
+                    ["Card decline fees", story.money_out.card_decline_fees_display],
                   ].map(([label, value]) => (
                     <li
                       key={label}
@@ -799,12 +803,13 @@ const Reconciliation: React.FC = () => {
               </div>
             </div>
 
-            <div className="mt-5 grid grid-cols-2 gap-3 text-sm sm:grid-cols-5">
+            <div className="mt-5 grid grid-cols-2 gap-3 text-sm sm:grid-cols-6">
               {[
                 ["Withdrawals", overview.money_out.withdrawn_display],
                 ["Bills", overview.money_out.bill_payments_display],
                 ["Card creation", overview.money_out.card_creation_fees_display],
                 ["Card loads", overview.money_out.card_funding_display],
+                ["Decline fees", overview.money_out.card_decline_fees_display],
                 ["Card spend (USD)", overview.cards.spent_usd_display],
               ].map(([label, value]) => (
                 <div key={label} className="rounded-xl bg-gray-50 px-3 py-2">
@@ -900,6 +905,7 @@ const Reconciliation: React.FC = () => {
                 <th className="px-4 py-3">Bills</th>
                 <th className="px-4 py-3">Card create</th>
                 <th className="px-4 py-3">Card loads</th>
+                <th className="px-4 py-3">Decline fees</th>
                 <th className="px-4 py-3">Card spend</th>
                 <th className="px-4 py-3">Naira bal.</th>
                 <th className="px-4 py-3">Card bal.</th>
@@ -910,13 +916,13 @@ const Reconciliation: React.FC = () => {
             <tbody>
               {usersQuery.isLoading ? (
                 <tr>
-                  <td colSpan={11} className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan={12} className="px-4 py-8 text-center text-gray-500">
                     Loading…
                   </td>
                 </tr>
               ) : tableRows.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan={12} className="px-4 py-8 text-center text-gray-500">
                     No users with activity in this range.
                   </td>
                 </tr>
@@ -945,6 +951,7 @@ const Reconciliation: React.FC = () => {
                     <td className="px-4 py-3">{row.bill_payments_display}</td>
                     <td className="px-4 py-3">{row.card_creation_fees_display}</td>
                     <td className="px-4 py-3">{row.card_funding_display}</td>
+                    <td className="px-4 py-3">{row.card_decline_fees_display ?? "—"}</td>
                     <td className="px-4 py-3">{row.card_spent_usd_display}</td>
                     <td className="px-4 py-3">{row.naira_balance_display}</td>
                     <td className="px-4 py-3">{row.card_balance_usd_display}</td>

@@ -22,6 +22,7 @@ export type AdminUserRow = {
   created_at: string | null;
   suspended_at: string | null;
   suspension_reason: string | null;
+  referral_code?: string | null;
 };
 
 export function fetchAdminUsers(params: {
@@ -53,7 +54,11 @@ export function fetchAdminUser(userId: number | string): Promise<AdminUserRow> {
 
 export function patchAdminUser(
   userId: number | string,
-  body: { internal_notes?: string | null; suspension_reason?: string | null }
+  body: {
+    internal_notes?: string | null;
+    suspension_reason?: string | null;
+    referral_code?: string | null;
+  }
 ): Promise<AdminUserRow> {
   return apiPatch<AdminUserRow>(`api/admin/users/${userId}`, body);
 }

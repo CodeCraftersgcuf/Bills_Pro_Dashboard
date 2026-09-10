@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { Check, MoreVertical, Search } from "lucide-react";
@@ -6,6 +6,7 @@ import {
   banAdminUser,
   fetchAdminUser,
   fetchAdminUserTimeline,
+  patchAdminUser,
   resetAdminUserPassword,
   revokeUserTokens,
   suspendAdminUser,
@@ -177,12 +178,19 @@ const UserProfile: React.FC = () => {
   const [withdrawalAccountsOpen, setWithdrawalAccountsOpen] = useState(false);
   const [kycModalOpen, setKycModalOpen] = useState(false);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
+  const [referralCodeDraft, setReferralCodeDraft] = useState("");
 
   const userQ = useQuery({
     queryKey: ["admin", "user", userId],
     queryFn: () => fetchAdminUser(userId!),
     enabled: Boolean(userId),
   });
+
+  useEffect(() => {
+    if (userQ.data) {
+      setReferralCodeDraft(userQ.data.referral_code ?? "");
+    }
+  }, [userQ.data]);
 
   const timelineQ = useQuery({
     queryKey: ["admin", "user-timeline", userId],
@@ -240,6 +248,17 @@ const UserProfile: React.FC = () => {
     mutationFn: () => resetAdminUserPassword(userId!),
     onSuccess: async (data) => {
       setActionNotice(`Temporary password: ${data.temporary_password}`);
+      await refreshUserState();
+    },
+  });
+
+  const saveReferralCodeMut = useMutation({
+    mutationFn: () =>
+      patchAdminUser(userId!, {
+        referral_code: referralCodeDraft.trim() || null,
+      }),
+    onSuccess: async () => {
+      setActionNotice("Referral code updated.");
       await refreshUserState();
     },
   });
@@ -443,6 +462,33 @@ const UserProfile: React.FC = () => {
                 <DetailField label="Phone Number" value={user.phone} />
                 <DetailField label="Date Registered" value={new Date(user.dateRegistered).toLocaleString()} />
                 <DetailField label="Account" value={userQ.data?.account_status ?? "—"} />
+              </div>
+
+              <div className="my-6 h-px w-full shrink-0 md:my-7" style={{ backgroundColor: DIVIDER }} />
+
+              <div className="flex min-w-0 flex-col gap-3 sm:max-w-lg">
+                <p className="text-xs font-normal leading-4 text-white/50">Referral code</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    className="min-w-0 flex-1 rounded-xl border-0 bg-white/15 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-white/30"
+                    value={referralCodeDraft}
+                    onChange={(e) => setReferralCodeDraft(e.target.value.toUpperCase())}
+                    placeholder="e.g. PETERVIP"
+                    autoCapitalize="characters"
+                  />
+                  <button
+                    type="button"
+                    disabled={saveReferralCodeMut.isPending}
+                    onClick={() => saveReferralCodeMut.mutate()}
+                    className="rounded-full px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                    style={{ backgroundColor: ACCENT_BTN }}
+                  >
+                    {saveReferralCodeMut.isPending ? "Saving…" : "Save code"}
+                  </button>
+                </div>
+                {saveReferralCodeMut.isError && (
+                  <p className="text-xs text-red-200">{(saveReferralCodeMut.error as Error).message}</p>
+                )}
               </div>
 
               <div className="my-6 h-px w-full shrink-0 md:my-7" style={{ backgroundColor: DIVIDER }} />
