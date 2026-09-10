@@ -297,7 +297,8 @@ export function valuesFromPlatformRow(r: {
   service_key?: string;
 }): RateFormValues {
   const isFxMarkup =
-    (r.category === "virtual_card" && (r.service_key === "fund" || r.service_key === "visa_fund")) ||
+    (r.category === "virtual_card" &&
+      (r.service_key === "fund" || r.service_key === "visa_fund" || r.service_key === "visa_493_fund")) ||
     (r.category === "crypto" && (r.service_key === "buy" || r.service_key === "sell"));
 
   return {

@@ -66,10 +66,16 @@ export function resolveRateFormProfile(
     if (serviceKey === "withdrawal") return "crypto_send";
   }
   if (tab === "virtual_card") {
-    if (serviceKey === "creation" || serviceKey === "visa_creation") return "vc_creation";
-    if (serviceKey === "fund" || serviceKey === "visa_fund") return "vc_fund";
+    if (serviceKey === "creation" || serviceKey === "visa_creation" || serviceKey === "visa_493_creation") {
+      return "vc_creation";
+    }
+    if (serviceKey === "fund" || serviceKey === "visa_fund" || serviceKey === "visa_493_fund") {
+      return "vc_fund";
+    }
     if (serviceKey === "decline_fee" || serviceKey === "visa_decline_fee") return "vc_decline";
-    if (serviceKey === "terminate" || serviceKey === "visa_terminate") return "vc_terminate";
+    if (serviceKey === "terminate" || serviceKey === "visa_terminate" || serviceKey === "visa_493_terminate") {
+      return "vc_terminate";
+    }
   }
   return null;
 }
@@ -278,12 +284,15 @@ const PDF_PRIMARY_SLUGS = new Set([
   "fiat|withdrawal|||",
   "fiat|deposit|||",
   "virtual_card|visa_creation|||",
+  "virtual_card|visa_493_creation|||",
   "virtual_card|creation|||",
   "virtual_card|visa_fund|||",
+  "virtual_card|visa_493_fund|||",
   "virtual_card|fund|||",
   "virtual_card|visa_decline_fee|||",
   "virtual_card|decline_fee|||",
   "virtual_card|visa_terminate|||",
+  "virtual_card|visa_493_terminate|||",
   "virtual_card|terminate|||",
   "crypto|buy|||",
   "crypto|sell|||",
@@ -312,7 +321,7 @@ export function formatRateSummary(r: PlatformRateRow): string {
     const cap = r.provider_pct_cap_ngn ? `cap ₦${r.provider_pct_cap_ngn}` : "";
     return `User ₦0 · Provider ${pct}% ${cap}`.trim();
   }
-  if (r.category === "virtual_card" && (sk === "fund" || sk === "visa_fund")) {
+  if (r.category === "virtual_card" && (sk === "fund" || sk === "visa_fund" || sk === "visa_493_fund")) {
     const parts: string[] = [];
     if (r.fee_usd) parts.push(`$${r.fee_usd}`);
     if (Number(r.fixed_fee_ngn) > 0) parts.push(`₦${r.fixed_fee_ngn} FX`);

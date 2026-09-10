@@ -79,6 +79,9 @@ const Rates: React.FC<RatesProps> = ({ visaOnly = false }) => {
       (r) =>
         r.service_key === "visa_creation" ||
         r.service_key === "visa_fund" ||
+        r.service_key === "visa_493_creation" ||
+        r.service_key === "visa_493_fund" ||
+        r.service_key === "visa_493_terminate" ||
         r.service_key === "visa_terminate" ||
         r.service_key === "visa_decline_fee"
     );
@@ -158,6 +161,9 @@ const Rates: React.FC<RatesProps> = ({ visaOnly = false }) => {
           (s) =>
             s.key === "visa_creation" ||
             s.key === "visa_fund" ||
+            s.key === "visa_493_creation" ||
+            s.key === "visa_493_fund" ||
+            s.key === "visa_493_terminate" ||
             s.key === "visa_terminate" ||
             s.key === "visa_decline_fee"
         )

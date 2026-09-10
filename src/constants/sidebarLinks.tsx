@@ -18,6 +18,7 @@ import {
   Headphones,
   Bell,
   Construction,
+  Gift,
   Settings,
   FileText,
 } from "lucide-react";
@@ -62,5 +63,6 @@ export const Sidebar_links: SidebarLinkItem[] = [
   { name: "Support", link: "/support", icon: Headphones, sublinks: [] },
   { name: "Notification", link: "/notification", icon: Bell, sublinks: [] },
   { name: "Service maintenance", link: "/maintenance", icon: Construction, sublinks: [] },
+  { name: "Referrals", link: "/referrals", icon: Gift, sublinks: [] },
   { name: "Settings", link: "/settings", icon: Settings, sublinks: [] },
 ];

@@ -27,6 +27,7 @@ import Analytics from "./pages/analytics/Analytics";
 import Support from "./pages/support/Support";
 import Notification from "./pages/notification/Notification";
 import ServiceMaintenance from "./pages/maintenance/ServiceMaintenance";
+import Referrals from "./pages/referrals/Referrals";
 import Setting from "./pages/setting/Setting";
 import AdminDetail from "./pages/setting/AdminDetail";
 import AppLegalDocuments from "./pages/legal/AppLegalDocuments";
@@ -67,6 +68,7 @@ const App: React.FC = () => {
                 <Route path="support" element={<Support />} />
                 <Route path="notification" element={<Notification />} />
                 <Route path="maintenance" element={<ServiceMaintenance />} />
+                <Route path="referrals" element={<Referrals />} />
                 <Route path="settings" element={<Setting />} />
                 <Route path="settings/admin/:adminId" element={<AdminDetail />} />
               </Route>
